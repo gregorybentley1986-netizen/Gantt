@@ -1,0 +1,2789 @@
+Option Explicit
+
+Private Type timelineData
+    PeriodStarts() As Date
+    PeriodEnds() As Date
+    PeriodLabels() As String
+    PeriodWidths() As Double
+    CumulativeWidths() As Double
+    count As Long
+    TotalWidth As Double
+End Type
+
+Private Const SHEET_GANTT As String = "Gantt"
+Private Const SHEET_DATA As String = "Данные"
+Private Const SHEET_SETTINGS As String = "Настройки"
+Private Const SHEET_REF As String = "Справочники"
+
+Private Const TABLE_DATA As String = "ОснДанные"
+Private Const TABLE_SETTINGS As String = "ОснНастройки"
+Private Const TABLE_COLORS As String = "ЦветНастройки"
+Private Const TABLE_LINE_TYPES As String = "ТипыЛиний"
+Private Const TABLE_EVENT_TYPES As String = "ТипыСобытий"
+
+Private Const BUTTON_NAME As String = "btnCreateGantt"
+
+Public Const BUTTON_CREATE_NAME As String = "btnCreateGantt"
+Public Const BUTTON_PDF_NAME As String = "btnExportPdf"
+Public Const BUTTON_PNG_NAME As String = "btnExportPng"
+Public Const BUTTON_JPEG_NAME As String = "btnExportJpeg"
+Private Const BG_SHAPE_NAME As String = "ganttBackground"
+
+Public Sub SetupGanttSheet()
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Worksheets(SHEET_GANTT)
+
+    EnsureGanttButton ws
+    EnsureExportButtons ws
+End Sub
+
+Public Sub CreateGanttDiagram()
+    Dim wsGantt As Worksheet
+    Dim wsData As Worksheet
+    Dim wsSettings As Worksheet
+    Dim wsRef As Worksheet
+    Dim dataTable As ListObject
+    Dim settingsTable As ListObject
+    Dim colorsTable As ListObject
+    Dim lineTypesTable As ListObject
+    Dim eventTypesTable As ListObject
+    Dim startCell As Range
+    Dim timelineStart As Date
+    Dim timelineEnd As Date
+    Dim periodName As String
+    Dim dayWidth As Double
+    Dim periodWidth As Double
+    Dim rowHeight As Double
+    Dim headerHeight As Double
+    Dim periodHeaderHeight As Double
+    Dim totalHeaderHeight As Double
+    Dim timelineLengthMm As Double
+    Dim timelineLengthPoints As Double
+    Dim scaleFactor As Double
+    Dim sidebarMode As String
+    Dim sidebarGap As Double
+    Dim sidebarWidth As Double
+    Dim sectionColWidth As Double
+    Dim taskColWidth As Double
+    Dim timelineLeft As Double
+    Dim diagramLeft As Double
+    Dim rowIndex As Long
+    Dim shapeTop As Double
+    Dim shapeLeft As Double
+    Dim barHeight As Double
+    Dim barHeightNominal As Double
+    Dim stackHeight As Double
+    Dim startDate As Date
+    Dim endDate As Date
+    Dim taskName As String
+    Dim sectionName As String
+    Dim lineType As String
+    Dim barColor As Long
+    Dim barTransparency As Double
+    Dim lineColor As Long
+    Dim lineTransparency As Double
+    Dim eventTransparency As Double
+    Dim eventItems As Collection
+    Dim ev As Variant
+    Dim barShape As Shape
+    Dim bgColor As Long
+    Dim yearHeaderColor As Long
+    Dim periodHeaderColor As Long
+    Dim timelineWidth As Double
+    Dim diagramHeight As Double
+    Dim legendHeight As Double
+    Dim legendPadding As Double
+    Dim diagramWidth As Double
+    Dim timelineData As timelineData
+    Dim i As Long
+    Dim g As Long
+    Dim groupTop As Double
+    Dim rowCount As Long
+    Dim taskCount As Long
+    Dim displayRowCount As Long
+    Dim rotateAllPeriods As Boolean
+    Dim sectionNames() As String
+    Dim taskNames() As String
+    Dim taskRowMap() As Long
+    Dim groupLengths() As Long
+    Dim groupNames() As String
+    Dim groupRowIndices() As Long
+    Dim taskRowIndices() As Long
+    Dim taskStackIndices() As Long
+    Dim taskStackCounts() As Long
+    Dim sidebarTaskNames() As String
+    Dim sidebarTaskRowIndices() As Long
+    Dim groupCount As Long
+    Dim sidebarColor As Long
+    Dim sectionRowColor As Long
+    Dim barLabel As String
+    Dim sidebarEnabled As Boolean
+    Dim sidebarBoth As Boolean
+    Dim vertDividerThickness As Double
+    Dim horizDividerThickness As Double
+    Dim vertDividerColor As Long
+    Dim horizDividerColor As Long
+    Dim todayStripeMode As String
+    Dim todayStripeThickness As Double
+    Dim todayStripeColor As Long
+    Dim bgTransparencyColor As Double
+    Dim yearHeaderTransparency As Double
+    Dim periodHeaderTransparency As Double
+    Dim sidebarTransparency As Double
+    Dim sectionTransparencyColor As Double
+    Dim vertDividerTransparency As Double
+    Dim horizDividerTransparency As Double
+    Dim todayStripeTransparency As Double
+    Dim sectionTransparencyFinal As Double
+    Dim sectionTransparency As Double
+    Dim taskMinHeight As Double
+    Dim sectionHeightMm As Double
+    Dim sectionHeightPoints As Double
+    Dim sidebarTextHeight As Double
+    Dim maxStackHeight As Double
+    Dim tmpBarHeight As Double
+    Dim tmpStackHeight As Double
+    Dim barGapMm As Double
+    Dim barGapPoints As Double
+    Dim sidebarWidthMm As Double
+    Dim sidebarWidthPoints As Double
+    Dim trackMinHeight As Double
+    Dim baseTrackHeight As Double
+    Dim rowHeights() As Double
+    Dim isSectionRow() As Boolean
+    Dim rowTops() As Double
+    Dim totalTasksHeight As Double
+    Dim sidebarTextIndentPoints As Double
+    Dim yearDividerThickness As Double
+    Dim usedLineTypes() As String
+    Dim usedEventTypes() As String
+    Dim usedLineTypeCount As Long
+    Dim usedEventTypeCount As Long
+    Dim maxLegendEventSize As Double
+    Dim legendOffsetLeft As Double
+    Dim legendMode As String
+    Dim sectionRenderMode As String
+    Dim barDisplayMode As String
+    Dim drawSectionInTimeline As Boolean
+    Dim sectionPadPoints As Double
+    Dim sectionFontSize As Long
+    Dim availSidebar As Double
+    Dim availTimeline As Double
+    Dim availWidth As Double
+    Dim linesCount As Long
+    Dim reqTextHeight As Double
+    Dim reqHeight As Double
+    Dim finalSectionHeight As Double
+    Dim showLegend As Boolean
+    Dim taskBorderMode As String
+    Dim eventBorderMode As String
+    Dim showTaskBorder As Boolean
+    Dim showEventBorder As Boolean
+    Dim eventIdx As Long
+    Dim eventName As String
+    Dim eventDateValue As Variant
+    Dim eventDate As Date
+    Dim eventShapeType As MsoAutoShapeType
+    Dim eventColor As Long
+    Dim eventHeight As Double
+    Dim eventWidth As Double
+    Dim eventLeft As Double
+    Dim eventTop As Double
+    Dim eventColumnIndex As Long
+    Dim eventDateColumnIndex As Long
+    Dim eventColumnIndices(1 To 10) As Long
+    Dim eventDateColumnIndices(1 To 10) As Long
+    Dim eventFound As Boolean
+    Dim dataRowIndex As Long
+
+    Application.ScreenUpdating = False
+
+    Set wsGantt = GetWorksheetByName(SHEET_GANTT)
+    Set wsData = GetWorksheetByNameOrTable(SHEET_DATA, TABLE_DATA)
+    Set wsSettings = GetWorksheetByNameOrTable(SHEET_SETTINGS, TABLE_SETTINGS)
+    Set wsRef = GetWorksheetByNameOrTable(SHEET_REF, TABLE_LINE_TYPES)
+
+    If wsGantt Is Nothing Or wsData Is Nothing Or wsSettings Is Nothing Or wsRef Is Nothing Then
+        Application.ScreenUpdating = True
+        MsgBox "Не найдены листы (Gantt/Данные/Настройки/Справочники) или таблицы.", vbExclamation
+        Exit Sub
+    End If
+
+    Set dataTable = wsData.ListObjects(TABLE_DATA)
+    Set settingsTable = wsSettings.ListObjects(TABLE_SETTINGS)
+    Set colorsTable = wsSettings.ListObjects(TABLE_COLORS)
+    Set lineTypesTable = wsRef.ListObjects(TABLE_LINE_TYPES)
+    On Error Resume Next
+    Set eventTypesTable = wsRef.ListObjects(TABLE_EVENT_TYPES)
+    On Error GoTo 0
+
+    Set startCell = wsGantt.Range("E1")
+
+    timelineStart = GetSettingValue(settingsTable, "Дата начала таймлайна", Date)
+    timelineEnd = GetSettingValue(settingsTable, "Дата окончания таймлайна", Date)
+    periodName = CStr(GetSettingValue(settingsTable, "Период", "Дни"))
+
+    dayWidth = GetSettingValue(settingsTable, "Ширина дня", 18)
+    periodWidth = GetSettingValue(settingsTable, "Ширина периода", 60)
+    rowHeight = GetSettingValue(settingsTable, "Высота строки", 18)
+    headerHeight = GetSettingValue(settingsTable, "Высота шапки", rowHeight)
+    timelineLengthMm = GetSettingValue(settingsTable, "Длина таймлайна, мм", 0)
+    taskMinHeight = GetSettingValue(settingsTable, "Высота бара задачи, мм", 0)
+    If taskMinHeight > 0 Then
+        taskMinHeight = taskMinHeight * 2.83465
+    End If
+    barHeightNominal = taskMinHeight
+    If barHeightNominal <= 0 Then
+        barHeightNominal = rowHeight * 0.6
+    End If
+    sidebarMode = CStr(GetSettingValue(settingsTable, "Сайдбар", "Отключен"))
+    sidebarGap = 0
+    vertDividerThickness = GetSettingValue(settingsTable, "Толщина вертикальных разделителей, пт", 0.75)
+    yearDividerThickness = GetSettingValue(settingsTable, "Толщина вертикальных разделителей между годами, пт", _
+                                           vertDividerThickness)
+    horizDividerThickness = GetSettingValue(settingsTable, "Толщина горизонтальных разделителей, пт", 0.75)
+    todayStripeMode = CStr(GetSettingValue(settingsTable, "Полоса Сегодня", "Выключить"))
+    todayStripeThickness = GetSettingValue(settingsTable, "Толщина полосы Сегодня, пт", 1.5)
+    sectionTransparency = GetSettingValue(settingsTable, "Прозрачность разделов", 0)
+    legendMode = CStr(GetSettingValue(settingsTable, "Легенда", "Включить"))
+    taskBorderMode = CStr(GetSettingValue(settingsTable, "Отображение рамки в задачах", "Включить"))
+    eventBorderMode = CStr(GetSettingValue(settingsTable, "Отображение рамки в фигурах", "Включить"))
+    sidebarTextIndentPoints = GetSettingValue(settingsTable, "Отступ текста задачи от левого края в сайдбаре, мм", 0)
+    If sidebarTextIndentPoints > 0 Then
+        sidebarTextIndentPoints = sidebarTextIndentPoints * 2.83465
+    Else
+        sidebarTextIndentPoints = 4
+    End If
+    sidebarWidthMm = GetSettingValue(settingsTable, "Ширина сайдбара, мм", 0)
+    If sidebarWidthMm > 0 Then
+        sidebarWidthPoints = sidebarWidthMm * 2.83465
+    End If
+    trackMinHeight = GetSettingValue(settingsTable, "Высота трека задачи (min), мм", 0)
+    If trackMinHeight > 0 Then
+        trackMinHeight = trackMinHeight * 2.83465
+    End If
+
+    sectionRenderMode = CStr(GetSettingValue(settingsTable, "Режим отображения раздела", "Сайдбар+таймлайн"))
+    barDisplayMode = CStr(GetSettingValue(settingsTable, "Вид отображения баров", "Уменьшение высоты"))
+    drawSectionInTimeline = (LCase$(sectionRenderMode) = "сайдбар+таймлайн")
+
+    sectionHeightMm = GetSettingValue(settingsTable, "Высота раздела, мм", 0)
+    If sectionHeightMm > 0 Then
+        sectionHeightPoints = sectionHeightMm * 2.83465
+    Else
+        sectionHeightPoints = 0
+    End If
+    showLegend = LCase$(legendMode) = "включить"
+    showTaskBorder = LCase$(taskBorderMode) <> "выключить"
+    showEventBorder = LCase$(eventBorderMode) <> "выключить"
+
+    ClearGanttShapes wsGantt
+    EnsureGanttButton wsGantt
+    EnsureExportButtons wsGantt
+
+    If dataTable.DataBodyRange Is Nothing Then
+        Application.ScreenUpdating = True
+        Exit Sub
+    End If
+
+    rowCount = dataTable.ListRows.count
+    If rowCount > 0 Then
+        ReDim sectionNames(1 To rowCount)
+        ReDim taskNames(1 To rowCount)
+        ReDim taskRowMap(1 To rowCount)
+    End If
+
+    taskCount = 0
+    ' Collect events to draw after all bars (so events are always on top of bars)
+    Set eventItems = New Collection
+
+    For i = 1 To rowCount
+        taskName = Trim$(CStr(dataTable.ListColumns("Задача").DataBodyRange.Cells(i, 1).value))
+        If Len(taskName) > 0 Then
+            taskCount = taskCount + 1
+            sectionNames(taskCount) = Trim$(CStr(dataTable.ListColumns("Раздел").DataBodyRange.Cells(i, 1).value))
+            taskNames(taskCount) = taskName
+            taskRowMap(taskCount) = i
+        End If
+    Next i
+
+    If taskCount > 0 Then
+        ReDim Preserve sectionNames(1 To taskCount)
+        ReDim Preserve taskNames(1 To taskCount)
+        ReDim Preserve taskRowMap(1 To taskCount)
+    Else
+        Erase sectionNames
+        Erase taskNames
+        Erase taskRowMap
+    End If
+
+    rowCount = taskCount
+
+    For eventIdx = 1 To 10
+        eventColumnIndices(eventIdx) = GetTableColumnIndex(dataTable, "Событие " & eventIdx)
+        eventDateColumnIndices(eventIdx) = GetTableColumnIndex(dataTable, "Дата " & eventIdx)
+    Next eventIdx
+
+    sidebarEnabled = LCase$(sidebarMode) <> "отключен"
+    sidebarBoth = LCase$(sidebarMode) = "с обеих сторон"
+
+    If rowCount > 0 Then
+        If sidebarEnabled Then
+            BuildSidebarLayoutWithDuplicates sectionNames, taskNames, groupRowIndices, groupLengths, groupNames, _
+                groupCount, taskRowIndices, taskStackIndices, taskStackCounts, sidebarTaskNames, _
+                sidebarTaskRowIndices, displayRowCount
+        Else
+            BuildSidebarLayout sectionNames, taskNames, groupRowIndices, groupLengths, groupNames, groupCount, _
+                taskRowIndices, displayRowCount
+        End If
+    End If
+
+    If sidebarEnabled Then
+        If rowCount > 0 Then
+            ComputeSidebarWidths sectionNames, sidebarTaskNames, 9, 6, sectionColWidth, taskColWidth
+        End If
+        If sidebarWidthPoints > 0 Then
+            taskColWidth = sidebarWidthPoints
+        End If
+        sectionColWidth = 0
+        sidebarWidth = taskColWidth
+    Else
+        sidebarWidth = 0
+        sectionColWidth = 0
+        taskColWidth = 0
+        If displayRowCount = 0 Then
+            displayRowCount = rowCount
+        End If
+    End If
+
+    barGapMm = GetSettingValue(settingsTable, "Зазор между барами в задаче, мм", 0)
+    If barGapMm > 0 Then
+        barGapPoints = barGapMm * 2.83465
+    Else
+        barGapPoints = 0
+    End If
+    baseTrackHeight = Application.WorksheetFunction.Max(rowHeight, barHeightNominal)
+    If trackMinHeight > 0 And trackMinHeight > baseTrackHeight Then
+        baseTrackHeight = trackMinHeight
+    End If
+
+    If displayRowCount > 0 Then
+        ReDim rowHeights(1 To displayRowCount)
+        ReDim isSectionRow(1 To displayRowCount)
+        If groupCount > 0 Then
+            For i = 1 To groupCount
+                If groupRowIndices(i) >= 1 And groupRowIndices(i) <= displayRowCount Then
+                    isSectionRow(groupRowIndices(i)) = True
+                End If
+            Next i
+        End If
+
+        
+        For i = 1 To displayRowCount
+            rowHeights(i) = baseTrackHeight
+        Next i
+    End If
+
+
+    '--- Apply section row height (independent from task/bar/track height)
+' Settings: "Высота раздела, мм"
+' Rule: final height = max(HeightFromSettings, TextHeight(1 line) + 1mm top + 1mm bottom)
+' IMPORTANT: do NOT tie section height to task/bar height, and do NOT expand section height due to wrapping in timeline.
+If groupCount > 0 And displayRowCount > 0 Then
+    sectionPadPoints = 1 * 2.83465 ' 1mm top + 1mm bottom
+    sectionFontSize = 9            ' must match DrawSidebar / DrawSectionRows font
+
+    For i = 1 To groupCount
+        If groupRowIndices(i) >= 1 And groupRowIndices(i) <= displayRowCount Then
+            reqTextHeight = EstimateTextHeight(sectionFontSize)
+            reqHeight = reqTextHeight + (2 * sectionPadPoints)
+            finalSectionHeight = Application.WorksheetFunction.Max(sectionHeightPoints, reqHeight)
+
+            ' Assign directly. Section row height must not be constrained by task/bar heights.
+            rowHeights(groupRowIndices(i)) = finalSectionHeight
+        End If
+    Next i
+End If
+
+If sidebarEnabled And rowCount > 0 Then
+        For i = LBound(sidebarTaskNames) To UBound(sidebarTaskNames)
+            rowIndex = sidebarTaskRowIndices(i)
+            If rowIndex < 1 Or rowIndex > displayRowCount Then GoTo NextSidebarRow
+            If isSectionRow(rowIndex) Then GoTo NextSidebarRow
+
+            sidebarTextHeight = GetSidebarRowTextHeight(sidebarTaskNames(i), taskColWidth, 9, 4)
+            If sidebarTextHeight > rowHeights(rowIndex) Then
+                rowHeights(rowIndex) = sidebarTextHeight
+            End If
+
+NextSidebarRow:
+        Next i
+End If
+
+
+    maxStackHeight = barHeightNominal
+    ' === Stack row height depends on bar display mode ===
+    Select Case LCase$(barDisplayMode)
+        Case "одинаковая высота"
+            For i = 1 To rowCount
+                If taskStackCounts(i) > 1 Then
+                    maxStackHeight = (barHeightNominal * taskStackCounts(i)) + (barGapPoints * (taskStackCounts(i) - 1))
+                    If maxStackHeight > rowHeights(taskRowIndices(i)) Then
+                        rowHeights(taskRowIndices(i)) = maxStackHeight
+                    End If
+                End If
+            Next i
+
+        Case Else
+            ' "Уменьшение высоты" and "В одну линию"
+            For i = 1 To rowCount
+                If taskStackCounts(i) > 1 Then
+                    maxStackHeight = barHeightNominal
+
+                    ' If user specified a gap, the stack may exceed barHeightNominal when minimum bar height is reached.
+                    ' In that case we expand the row height to avoid overlaps/clipping.
+                    If (LCase$(barDisplayMode) = "уменьшение высоты") And (barGapPoints > 0) Then
+                        tmpBarHeight = (barHeightNominal - (barGapPoints * (taskStackCounts(i) - 1))) / taskStackCounts(i)
+                        If tmpBarHeight < 1 Then tmpBarHeight = 1
+                        tmpStackHeight = (tmpBarHeight * taskStackCounts(i)) + (barGapPoints * (taskStackCounts(i) - 1))
+                        If tmpStackHeight > maxStackHeight Then maxStackHeight = tmpStackHeight
+                    End If
+                lineTransparency = GetLineTypeTransparency(lineTypesTable, lineType, 0)
+
+                    If maxStackHeight > rowHeights(taskRowIndices(i)) Then
+                        rowHeights(taskRowIndices(i)) = maxStackHeight
+                    End If
+                End If
+            Next i
+    End Select
+
+    timelineData = BuildTimeline(timelineStart, timelineEnd, periodName, dayWidth, periodWidth)
+    timelineWidth = timelineData.TotalWidth
+
+    If timelineData.count = 0 Then
+        Application.ScreenUpdating = True
+        Exit Sub
+    End If
+
+    If timelineLengthMm > 0 Then
+        timelineLengthPoints = timelineLengthMm * 2.83465
+        If timelineWidth > 0 Then
+            scaleFactor = timelineLengthPoints / timelineWidth
+            ScaleTimeline timelineData, scaleFactor
+            timelineWidth = timelineData.TotalWidth
+        End If
+    End If
+
+    NormalizeTimelinePeriodWidths timelineData
+    timelineWidth = timelineData.TotalWidth
+
+    diagramLeft = startCell.Left
+    timelineLeft = diagramLeft
+    If LCase$(sidebarMode) = "слева" Or sidebarBoth Then
+        timelineLeft = diagramLeft + sidebarWidth + sidebarGap
+    End If
+
+    rotateAllPeriods = ShouldRotateAllPeriodLabels(timelineData, 9)
+    periodHeaderHeight = GetPeriodHeaderHeight(timelineData, headerHeight, 9, rotateAllPeriods)
+    ' Extra vertical padding to avoid month label clipping
+    periodHeaderHeight = periodHeaderHeight + (2 * 2.83465)
+    totalHeaderHeight = headerHeight + periodHeaderHeight
+
+    If displayRowCount > 0 Then
+        ComputeRowTops startCell.Top + totalHeaderHeight, rowHeights, rowTops, totalTasksHeight
+    End If
+
+    bgColor = GetColorFromTable(colorsTable, "Фон диаграммы", bgTransparencyColor)
+    If bgColor = -1 Then
+        bgColor = RGB(242, 242, 242)
+    End If
+
+    yearHeaderColor = GetColorFromTable(colorsTable, "Фон шапки (годы)", yearHeaderTransparency)
+    If yearHeaderColor = -1 Then
+        yearHeaderColor = RGB(217, 217, 217)
+    End If
+
+    periodHeaderColor = GetColorFromTable(colorsTable, "Фон шапки (периоды)", periodHeaderTransparency)
+    If periodHeaderColor = -1 Then
+        periodHeaderColor = RGB(198, 224, 180)
+    End If
+
+    diagramWidth = timelineWidth
+    If sidebarEnabled Then
+        If sidebarBoth Then
+            diagramWidth = timelineWidth + 2 * sidebarWidth + sidebarGap * 2
+        Else
+            diagramWidth = timelineWidth + sidebarWidth + sidebarGap
+        End If
+    End If
+    If displayRowCount = 0 Then
+        displayRowCount = rowCount
+    End If
+    legendPadding = 6
+    legendOffsetLeft = 10 * 2.83465
+    If showLegend Then
+        CollectUsedLegendItems dataTable, eventTypesTable, taskRowMap, rowCount, timelineStart, timelineEnd, _
+            eventColumnIndices, eventDateColumnIndices, barHeightNominal, usedLineTypes, usedLineTypeCount, _
+            usedEventTypes, usedEventTypeCount, maxLegendEventSize
+        legendHeight = GetLegendHeightFromCounts(usedLineTypeCount, usedEventTypeCount, legendPadding, _
+            maxLegendEventSize)
+    Else
+        legendHeight = 0
+    End If
+    diagramHeight = totalHeaderHeight + totalTasksHeight + legendHeight
+
+    bgTransparencyColor = ResolveTransparency(bgTransparencyColor, 0)
+    DrawDiagramBackground wsGantt, diagramLeft, startCell.Top, diagramWidth, diagramHeight, bgColor, _
+        bgTransparencyColor
+
+    DrawHeaderShapes wsGantt, timelineLeft, startCell.Top, timelineData, headerHeight, periodHeaderHeight, _
+        yearHeaderColor, yearHeaderTransparency, periodHeaderColor, periodHeaderTransparency, rotateAllPeriods
+
+    sidebarColor = GetColorFromTable(colorsTable, "Цвет сайдбара", sidebarTransparency)
+    If sidebarColor = -1 Then
+        sidebarColor = RGB(242, 242, 242)
+    End If
+
+    sectionRowColor = GetColorFromTable(colorsTable, "Цвет раздела", sectionTransparencyColor)
+    If sectionRowColor = -1 Then
+        sectionRowColor = RGB(217, 217, 217)
+    End If
+
+    vertDividerColor = GetColorFromTable(colorsTable, "Цвет вертикальных разделителей", vertDividerTransparency)
+    If vertDividerColor = -1 Then
+        vertDividerColor = RGB(191, 191, 191)
+    End If
+
+    horizDividerColor = GetColorFromTable(colorsTable, "Цвет горизонтальных разделителей", horizDividerTransparency)
+    If horizDividerColor = -1 Then
+        horizDividerColor = RGB(191, 191, 191)
+    End If
+
+    todayStripeColor = GetColorFromTable(colorsTable, "Цвет полосы Сегодня", todayStripeTransparency)
+    If todayStripeColor = -1 Then
+        todayStripeColor = RGB(255, 0, 0)
+    End If
+
+    yearHeaderTransparency = ResolveTransparency(yearHeaderTransparency, 0)
+    periodHeaderTransparency = ResolveTransparency(periodHeaderTransparency, 0)
+    sidebarTransparency = ResolveTransparency(sidebarTransparency, 0)
+    vertDividerTransparency = ResolveTransparency(vertDividerTransparency, 0)
+    horizDividerTransparency = ResolveTransparency(horizDividerTransparency, 0)
+    todayStripeTransparency = ResolveTransparency(todayStripeTransparency, 0)
+    sectionTransparencyFinal = ResolveTransparency(sectionTransparencyColor, sectionTransparency)
+
+    If LCase$(sidebarMode) = "справа" Then
+        DrawSidebar wsGantt, timelineLeft + timelineWidth + sidebarGap, startCell.Top, totalHeaderHeight, _
+            totalTasksHeight, displayRowCount, sectionColWidth, taskColWidth, groupRowIndices, groupNames, groupCount, _
+            sidebarTaskNames, sidebarTaskRowIndices, sidebarColor, sidebarTransparency, sectionRowColor, sectionTransparencyFinal, _
+            rowTops, rowHeights, sidebarTextIndentPoints
+    ElseIf LCase$(sidebarMode) = "слева" Then
+        DrawSidebar wsGantt, diagramLeft, startCell.Top, totalHeaderHeight, _
+            totalTasksHeight, displayRowCount, sectionColWidth, taskColWidth, groupRowIndices, groupNames, groupCount, _
+            sidebarTaskNames, sidebarTaskRowIndices, sidebarColor, sidebarTransparency, sectionRowColor, sectionTransparencyFinal, _
+            rowTops, rowHeights, sidebarTextIndentPoints
+    ElseIf sidebarBoth Then
+        DrawSidebar wsGantt, diagramLeft, startCell.Top, totalHeaderHeight, _
+            totalTasksHeight, displayRowCount, sectionColWidth, taskColWidth, groupRowIndices, groupNames, groupCount, _
+            sidebarTaskNames, sidebarTaskRowIndices, sidebarColor, sidebarTransparency, sectionRowColor, sectionTransparencyFinal, _
+            rowTops, rowHeights, sidebarTextIndentPoints
+        DrawSidebar wsGantt, timelineLeft + timelineWidth + sidebarGap, startCell.Top, totalHeaderHeight, _
+            totalTasksHeight, displayRowCount, sectionColWidth, taskColWidth, groupRowIndices, groupNames, groupCount, _
+            sidebarTaskNames, sidebarTaskRowIndices, sidebarColor, sidebarTransparency, sectionRowColor, sectionTransparencyFinal, _
+            rowTops, rowHeights, sidebarTextIndentPoints
+    End If
+
+    DrawTimelineDividers wsGantt, diagramLeft, startCell.Top, diagramWidth, headerHeight, totalHeaderHeight, _
+        totalTasksHeight, displayRowCount, rowTops, rowHeights, timelineLeft, timelineWidth, timelineData, _
+        sidebarMode, sidebarWidth, sidebarGap, vertDividerThickness, yearDividerThickness, horizDividerThickness, _
+        vertDividerColor, vertDividerTransparency, horizDividerColor, horizDividerTransparency
+
+    If drawSectionInTimeline Then
+        DrawSectionRows wsGantt, diagramLeft, startCell.Top + totalHeaderHeight, _
+            diagramWidth, groupRowIndices, groupLengths, groupNames, groupCount, sectionRowColor, sectionTransparencyFinal, _
+            rowTops, rowHeights
+    End If
+
+    For i = 1 To rowCount
+        sectionName = sectionNames(i)
+        taskName = taskNames(i)
+        dataRowIndex = taskRowMap(i)
+        startDate = dataTable.ListColumns("Дата начала").DataBodyRange.Cells(dataRowIndex, 1).value
+        endDate = dataTable.ListColumns("Дата окончания").DataBodyRange.Cells(dataRowIndex, 1).value
+        lineType = CStr(dataTable.ListColumns("Тип линии").DataBodyRange.Cells(dataRowIndex, 1).value)
+
+        If endDate < startDate Then
+            GoTo NextRow
+        End If
+
+        If sidebarEnabled Then
+            rowIndex = taskRowIndices(i)
+        ElseIf groupCount > 0 Then
+            rowIndex = taskRowIndices(i)
+        Else
+            rowIndex = i
+        End If
+        If sidebarEnabled Then
+            barLabel = ""
+        Else
+            barLabel = TruncateTextWithEllipsis(taskName, _
+                GetTimelineOffset(timelineData, endDate + 1) - GetTimelineOffset(timelineData, startDate), 9, 4)
+        End If
+        barHeight = barHeightNominal
+        shapeTop = rowTops(rowIndex) + (rowHeights(rowIndex) - barHeight) / 2
+
+        Select Case LCase$(barDisplayMode)
+            Case "уменьшение высоты"
+                If taskStackCounts(i) > 1 Then
+                    ' Fit stack into nominal height, but account for gaps
+                    barHeight = (barHeightNominal - (barGapPoints * (taskStackCounts(i) - 1))) / taskStackCounts(i)
+                    If barHeight < 1 Then barHeight = 1
+                    stackHeight = (barHeight * taskStackCounts(i)) + (barGapPoints * (taskStackCounts(i) - 1))
+                    shapeTop = rowTops(rowIndex) + _
+                        (rowHeights(rowIndex) - stackHeight) / 2 + _
+                        (taskStackIndices(i) - 1) * (barHeight + barGapPoints)
+                Else
+                    barHeight = barHeightNominal
+                    shapeTop = rowTops(rowIndex) + (rowHeights(rowIndex) - barHeight) / 2
+                End If
+
+            Case "одинаковая высота"
+                barHeight = barHeightNominal
+                If taskStackCounts(i) > 1 Then
+                    stackHeight = (barHeight * taskStackCounts(i)) + (barGapPoints * (taskStackCounts(i) - 1))
+                    shapeTop = rowTops(rowIndex) + _
+                        (rowHeights(rowIndex) - stackHeight) / 2 + _
+                        (taskStackIndices(i) - 1) * (barHeight + barGapPoints)
+                Else
+                    shapeTop = rowTops(rowIndex) + (rowHeights(rowIndex) - barHeight) / 2
+                End If
+
+            Case "в одну линию"
+                barHeight = barHeightNominal
+                ' No vertical offset between bars; they are drawn on the same line
+                shapeTop = rowTops(rowIndex) + (rowHeights(rowIndex) - barHeight) / 2
+
+            Case Else
+                barHeight = barHeightNominal
+                shapeTop = rowTops(rowIndex) + (rowHeights(rowIndex) - barHeight) / 2
+        End Select
+        shapeLeft = timelineLeft + GetTimelineOffset(timelineData, startDate)
+
+        barColor = GetLineTypeColor(lineTypesTable, lineType, RGB(91, 155, 213))
+        barTransparency = GetLineTypeTransparency(lineTypesTable, lineType, 0)
+        lineColor = barColor
+
+        Set barShape = DrawTaskBar(wsGantt, shapeLeft, shapeTop, _
+            GetTimelineOffset(timelineData, endDate + 1) - GetTimelineOffset(timelineData, startDate), _
+            barHeight, barLabel, sectionName, barColor, lineColor, showTaskBorder)
+        barShape.Fill.Transparency = ClampTransparency(barTransparency) / 100
+
+        For eventIdx = 1 To 10
+            eventColumnIndex = eventColumnIndices(eventIdx)
+            eventDateColumnIndex = eventDateColumnIndices(eventIdx)
+            If eventColumnIndex > 0 And eventDateColumnIndex > 0 Then
+                eventName = Trim$(CStr(dataTable.ListColumns(eventColumnIndex).DataBodyRange.Cells(dataRowIndex, 1).value))
+                eventDateValue = dataTable.ListColumns(eventDateColumnIndex).DataBodyRange.Cells(dataRowIndex, 1).value
+                If Len(eventName) > 0 And IsDate(eventDateValue) Then
+                    eventDate = CDate(eventDateValue)
+                    If eventDate >= timelineStart And eventDate <= timelineEnd Then
+                        eventFound = GetEventTypeInfo(eventTypesTable, eventName, eventShapeType, eventColor, eventHeight)
+                        eventTransparency = GetEventTypeTransparency(eventTypesTable, eventName, 0)
+                        If Not eventFound Then
+                            eventShapeType = msoShapeOval
+                            eventColor = barColor
+                            eventHeight = barHeightNominal
+                            eventTransparency = 0
+                        End If
+                        If eventHeight <= 0 Then
+                            eventHeight = barHeightNominal
+                        End If
+                        eventWidth = eventHeight
+                        eventLeft = timelineLeft + GetTimelineOffset(timelineData, eventDate + 0.5) - eventWidth / 2
+                        eventTop = shapeTop + (barHeight - eventHeight) / 2
+                        eventItems.Add Array(eventShapeType, eventLeft, eventTop, eventWidth, eventHeight, eventColor, showEventBorder, eventTransparency)
+                    End If
+                End If
+            End If
+        Next eventIdx
+NextRow:
+    Next i
+
+
+    ' Draw events AFTER all bars so they are not covered by neighboring task bars
+    If Not eventItems Is Nothing Then
+        For Each ev In eventItems
+            DrawEventShape wsGantt, ev(0), ev(1), ev(2), ev(3), ev(4), ev(5), ev(6), ev(7)
+        Next ev
+    End If
+
+    If LCase$(todayStripeMode) = "включить" Then
+        DrawTodayStripe wsGantt, timelineLeft, startCell.Top + totalHeaderHeight, _
+            totalTasksHeight, displayRowCount, timelineData, todayStripeThickness, todayStripeColor, _
+            todayStripeTransparency
+    End If
+
+    If legendHeight > 0 Then
+        DrawLegend wsGantt, diagramLeft + legendOffsetLeft, startCell.Top + totalHeaderHeight + totalTasksHeight, _
+            diagramWidth - legendOffsetLeft, legendHeight, lineTypesTable, eventTypesTable, legendPadding, _
+            barHeightNominal, _
+            usedLineTypes, usedLineTypeCount, usedEventTypes, usedEventTypeCount, showEventBorder
+    End If
+
+    Application.ScreenUpdating = True
+End Sub
+
+Private Sub DrawDiagramBackground(ByVal ws As Worksheet, ByVal leftPos As Double, ByVal topPos As Double, _
+                                  ByVal width As Double, ByVal height As Double, ByVal fillColor As Long, _
+                                  ByVal backgroundTransparency As Double)
+    Dim shp As Shape
+
+    Set shp = ws.Shapes.AddShape(msoShapeRectangle, leftPos, topPos, width, height)
+    shp.Name = BG_SHAPE_NAME
+    shp.Fill.ForeColor.RGB = fillColor
+    shp.Fill.Transparency = ClampTransparency(backgroundTransparency) / 100
+    shp.Line.Visible = msoFalse
+    shp.ZOrder msoSendToBack
+End Sub
+
+Private Sub DrawHeaderShapes(ByVal ws As Worksheet, ByVal startLeft As Double, ByVal startTop As Double, _
+                             ByRef timelineData As timelineData, ByVal yearHeaderHeight As Double, _
+                             ByVal periodHeaderHeight As Double, ByVal yearColor As Long, _
+                             ByVal yearTransparency As Double, ByVal periodColor As Long, _
+                             ByVal periodTransparency As Double, ByVal rotateAllPeriods As Boolean)
+    Dim i As Long
+    Dim periodLeft As Double
+    Dim yearStartIndex As Long
+    Dim yearWidth As Double
+    Dim currentYear As Long
+    Dim periodShape As Shape
+    Dim yearShape As Shape
+
+    periodLeft = startLeft
+    currentYear = Year(timelineData.PeriodStarts(1))
+    yearStartIndex = 1
+    yearWidth = 0
+    For i = 1 To timelineData.count
+        Set periodShape = ws.Shapes.AddShape(msoShapeRectangle, periodLeft, startTop + yearHeaderHeight, _
+                                             timelineData.PeriodWidths(i), periodHeaderHeight)
+        periodShape.Fill.ForeColor.RGB = periodColor
+        periodShape.Fill.transparency = ClampTransparency(periodTransparency) / 100
+        periodShape.Line.Visible = msoFalse
+        periodShape.TextFrame2.TextRange.Text = timelineData.PeriodLabels(i)
+        periodShape.TextFrame2.TextRange.Font.Size = 9
+        periodShape.TextFrame2.TextRange.Font.Fill.ForeColor.RGB = GetContrastingTextColor(periodColor)
+        periodShape.TextFrame2.WordWrap = msoFalse
+        periodShape.TextFrame2.TextRange.ParagraphFormat.WordWrap = msoFalse
+        periodShape.TextFrame2.VerticalAnchor = msoAnchorMiddle
+        periodShape.TextFrame2.TextRange.ParagraphFormat.Alignment = msoAlignCenter
+        If rotateAllPeriods Then
+            FitRotatedPeriodShape periodShape, periodLeft, startTop + yearHeaderHeight, _
+                timelineData.PeriodWidths(i), periodHeaderHeight, timelineData.PeriodLabels(i), 9
+        Else
+            FitHorizontalPeriodShape periodShape, periodLeft, startTop + yearHeaderHeight, _
+                timelineData.PeriodWidths(i), periodHeaderHeight
+        End If
+
+        yearWidth = yearWidth + timelineData.PeriodWidths(i)
+
+        If i = timelineData.count Then
+            Set yearShape = ws.Shapes.AddShape(msoShapeRectangle, startLeft + timelineData.CumulativeWidths(yearStartIndex), _
+                                               startTop, yearWidth, yearHeaderHeight)
+            yearShape.Fill.ForeColor.RGB = yearColor
+            yearShape.Fill.transparency = ClampTransparency(yearTransparency) / 100
+            yearShape.Line.Visible = msoFalse
+            yearShape.TextFrame2.TextRange.Text = CStr(currentYear)
+            yearShape.TextFrame2.TextRange.Font.Size = 9
+            yearShape.TextFrame2.TextRange.Font.Fill.ForeColor.RGB = GetContrastingTextColor(yearColor)
+            yearShape.TextFrame2.VerticalAnchor = msoAnchorMiddle
+            yearShape.TextFrame2.TextRange.ParagraphFormat.Alignment = msoAlignCenter
+        ElseIf Year(timelineData.PeriodStarts(i + 1)) <> currentYear Then
+            Set yearShape = ws.Shapes.AddShape(msoShapeRectangle, startLeft + timelineData.CumulativeWidths(yearStartIndex), _
+                                               startTop, yearWidth, yearHeaderHeight)
+            yearShape.Fill.ForeColor.RGB = yearColor
+            yearShape.Fill.transparency = ClampTransparency(yearTransparency) / 100
+            yearShape.Line.Visible = msoFalse
+            yearShape.TextFrame2.TextRange.Text = CStr(currentYear)
+            yearShape.TextFrame2.TextRange.Font.Size = 9
+            yearShape.TextFrame2.TextRange.Font.Fill.ForeColor.RGB = GetContrastingTextColor(yearColor)
+            yearShape.TextFrame2.VerticalAnchor = msoAnchorMiddle
+            yearShape.TextFrame2.TextRange.ParagraphFormat.Alignment = msoAlignCenter
+
+            currentYear = Year(timelineData.PeriodStarts(i + 1))
+            yearStartIndex = i + 1
+            yearWidth = 0
+        End If
+
+        periodLeft = periodLeft + timelineData.PeriodWidths(i)
+    Next i
+End Sub
+
+Private Sub FitRotatedPeriodShape(ByVal periodShape As Shape, ByVal targetLeft As Double, _
+                                  ByVal targetTop As Double, ByVal targetWidth As Double, _
+                                  ByVal targetHeight As Double, ByVal labelText As String, _
+                                  ByVal fontSize As Long)
+    ' Rotate the whole shape (incl. text) and then re-center it inside the target cell.
+    ' Important: after rotation Excel may reset/ignore vertical anchoring for some fonts/strings,
+    ' so we re-apply VerticalAnchor and margins here to keep month names vertically centered.
+    periodShape.Rotation = -90
+    periodShape.Width = targetHeight
+    periodShape.Height = targetWidth
+    periodShape.Left = targetLeft + (targetWidth - periodShape.Width) / 2
+    periodShape.Top = targetTop + (targetHeight - periodShape.Height) / 2
+
+    ' Re-apply text formatting after rotation to avoid "sticking to top" for long labels
+    With periodShape.TextFrame2
+        .VerticalAnchor = msoAnchorMiddle
+        .MarginTop = 0
+        .MarginBottom = 0
+        .MarginLeft = 0
+        .MarginRight = 0
+        .WordWrap = msoFalse
+        .TextRange.ParagraphFormat.WordWrap = msoFalse
+        .TextRange.ParagraphFormat.Alignment = msoAlignCenter
+    End With
+End Sub
+
+Private Sub FitHorizontalPeriodShape(ByVal periodShape As Shape, ByVal targetLeft As Double, _
+                                     ByVal targetTop As Double, ByVal targetWidth As Double, _
+                                     ByVal targetHeight As Double)
+    periodShape.Rotation = 0
+    periodShape.width = targetWidth
+    periodShape.height = targetHeight
+    periodShape.Left = targetLeft
+    periodShape.Top = targetTop
+End Sub
+
+Private Sub DrawSectionRows(ByVal ws As Worksheet, ByVal leftPos As Double, ByVal topPos As Double, _
+                            ByVal timelineWidth As Double, ByRef groupRowIndices() As Long, _
+                            ByRef groupLengths() As Long, ByRef groupNames() As String, _
+                            ByVal groupCount As Long, ByVal sectionColor As Long, _
+                            ByVal sectionTransparency As Double, ByRef rowTops() As Double, _
+                            ByRef rowHeights() As Double)
+    Dim g As Long
+    Dim shp As Shape
+    Dim rowTop As Double
+
+    If groupCount <= 0 Then
+        Exit Sub
+    End If
+
+    For g = 1 To groupCount
+        If groupLengths(g) <= 0 Or Len(Trim$(groupNames(g))) = 0 Then
+            GoTo NextGroup
+        End If
+        rowTop = rowTops(groupRowIndices(g))
+        Set shp = ws.Shapes.AddShape(msoShapeRectangle, leftPos, rowTop, timelineWidth, rowHeights(groupRowIndices(g)))
+        shp.Fill.ForeColor.RGB = sectionColor
+        shp.Fill.transparency = ClampTransparency(sectionTransparency) / 100
+        shp.Line.Visible = msoFalse
+        shp.TextFrame2.TextRange.Text = groupNames(g)
+        shp.TextFrame2.TextRange.Font.Size = 9
+        shp.TextFrame2.TextRange.Font.Fill.ForeColor.RGB = GetContrastingTextColor(sectionColor)
+        shp.TextFrame2.WordWrap = msoTrue
+        shp.TextFrame2.TextRange.ParagraphFormat.WordWrap = msoTrue
+        shp.TextFrame2.VerticalAnchor = msoAnchorMiddle
+        shp.TextFrame2.TextRange.ParagraphFormat.Alignment = msoAlignLeft
+        shp.TextFrame2.MarginLeft = 4
+        shp.TextFrame2.MarginRight = 4
+NextGroup:
+    Next g
+End Sub
+
+Private Sub DrawSidebar(ByVal ws As Worksheet, ByVal leftPos As Double, ByVal topPos As Double, _
+                        ByVal headerHeight As Double, ByVal tasksHeight As Double, _
+                        ByVal displayRowCount As Long, ByVal sectionColWidth As Double, _
+                        ByVal taskColWidth As Double, ByRef groupRowIndices() As Long, _
+                        ByRef groupNames() As String, ByVal groupCount As Long, _
+                        ByRef taskNames() As String, ByRef taskRowIndices() As Long, _
+                        ByVal sidebarColor As Long, ByVal sidebarTransparency As Double, _
+                        ByVal sectionColor As Long, ByVal sectionTransparency As Double, _
+                        ByRef rowTops() As Double, ByRef rowHeights() As Double, _
+                        ByVal textIndent As Double)
+    Dim i As Long
+    Dim g As Long
+    Dim groupTop As Double
+    Dim shp As Shape
+    Dim taskTop As Double
+    Dim totalHeight As Double
+
+    If displayRowCount <= 0 Then
+        Exit Sub
+    End If
+
+    totalHeight = headerHeight + tasksHeight
+    Set shp = ws.Shapes.AddShape(msoShapeRectangle, leftPos, topPos, taskColWidth, totalHeight)
+    shp.Fill.ForeColor.RGB = sidebarColor
+    shp.Fill.transparency = ClampTransparency(sidebarTransparency) / 100
+    shp.Line.Visible = msoFalse
+
+    If groupCount > 0 Then
+        For g = 1 To groupCount
+            If groupRowIndices(g) > 0 Then
+                groupTop = rowTops(groupRowIndices(g))
+                Set shp = ws.Shapes.AddShape(msoShapeRectangle, leftPos, groupTop, taskColWidth, rowHeights(groupRowIndices(g)))
+                shp.Fill.ForeColor.RGB = sectionColor
+                shp.Fill.transparency = ClampTransparency(sectionTransparency) / 100
+                shp.Line.Visible = msoFalse
+                shp.TextFrame2.TextRange.Text = groupNames(g)
+                shp.TextFrame2.TextRange.Font.Size = 9
+                shp.TextFrame2.TextRange.Font.Fill.ForeColor.RGB = GetContrastingTextColor(sectionColor)
+                shp.TextFrame2.WordWrap = msoTrue
+                shp.TextFrame2.TextRange.ParagraphFormat.WordWrap = msoTrue
+                shp.TextFrame2.VerticalAnchor = msoAnchorMiddle
+                shp.TextFrame2.TextRange.ParagraphFormat.Alignment = msoAlignLeft
+                shp.TextFrame2.MarginLeft = textIndent
+                shp.TextFrame2.MarginRight = 4
+            End If
+        Next g
+    End If
+
+    For i = LBound(taskNames) To UBound(taskNames)
+        taskTop = rowTops(taskRowIndices(i))
+        Set shp = ws.Shapes.AddShape(msoShapeRectangle, leftPos, _
+                                     taskTop, taskColWidth, rowHeights(taskRowIndices(i)))
+        shp.Fill.ForeColor.RGB = sidebarColor
+        shp.Fill.transparency = ClampTransparency(sidebarTransparency) / 100
+        shp.Line.Visible = msoFalse
+        shp.TextFrame2.TextRange.Text = taskNames(i)
+        shp.TextFrame2.TextRange.Font.Size = 9
+        shp.TextFrame2.TextRange.Font.Fill.ForeColor.RGB = GetContrastingTextColor(sidebarColor)
+        shp.TextFrame2.WordWrap = msoTrue
+        shp.TextFrame2.TextRange.ParagraphFormat.WordWrap = msoTrue
+        shp.TextFrame2.VerticalAnchor = msoAnchorMiddle
+        shp.TextFrame2.TextRange.ParagraphFormat.Alignment = msoAlignLeft
+        shp.TextFrame2.MarginLeft = textIndent
+        shp.TextFrame2.MarginRight = 4
+    Next i
+End Sub
+
+Private Sub BuildSidebarLayout(ByRef sectionNames() As String, ByRef taskNames() As String, _
+                               ByRef groupRowIndices() As Long, ByRef groupLengths() As Long, _
+                               ByRef groupNames() As String, ByRef groupCount As Long, _
+                               ByRef taskRowIndices() As Long, ByRef displayRowCount As Long)
+    Dim i As Long
+    Dim lb As Long
+    Dim sectionCount As Long
+    Dim sectionList() As String
+    Dim sectionIndexPerRow() As Long
+    Dim sectionIndex As Long
+    Dim hasSections As Boolean
+
+    groupCount = 0
+    displayRowCount = 0
+    On Error Resume Next
+    lb = LBound(sectionNames)
+    If Err.Number <> 0 Then
+        On Error GoTo 0
+        Exit Sub
+    End If
+    On Error GoTo 0
+
+    ReDim taskRowIndices(lb To UBound(taskNames))
+    ReDim sectionIndexPerRow(lb To UBound(sectionNames))
+
+    hasSections = False
+    For i = lb To UBound(sectionNames)
+        If Len(Trim$(sectionNames(i))) > 0 Then
+            hasSections = True
+            Exit For
+        End If
+    Next i
+
+    If Not hasSections Then
+        For i = lb To UBound(taskNames)
+            displayRowCount = displayRowCount + 1
+            taskRowIndices(i) = displayRowCount
+        Next i
+        Exit Sub
+    End If
+
+    For i = lb To UBound(sectionNames)
+        If Len(Trim$(sectionNames(i))) = 0 Then
+            sectionIndexPerRow(i) = 0
+        Else
+            sectionIndex = FindKeyIndex(sectionList, sectionCount, sectionNames(i))
+            If sectionIndex = 0 Then
+                sectionCount = sectionCount + 1
+                ReDim Preserve sectionList(1 To sectionCount)
+                sectionList(sectionCount) = sectionNames(i)
+                sectionIndex = sectionCount
+            End If
+            sectionIndexPerRow(i) = sectionIndex
+        End If
+    Next i
+
+    For sectionIndex = 1 To sectionCount
+        groupCount = groupCount + 1
+        ReDim Preserve groupRowIndices(1 To groupCount)
+        ReDim Preserve groupLengths(1 To groupCount)
+        ReDim Preserve groupNames(1 To groupCount)
+        displayRowCount = displayRowCount + 1
+        groupRowIndices(groupCount) = displayRowCount
+        groupLengths(groupCount) = 0
+        groupNames(groupCount) = sectionList(sectionIndex)
+
+        For i = lb To UBound(sectionNames)
+            If sectionIndexPerRow(i) = sectionIndex Then
+                displayRowCount = displayRowCount + 1
+                taskRowIndices(i) = displayRowCount
+                groupLengths(groupCount) = groupLengths(groupCount) + 1
+            End If
+        Next i
+    Next sectionIndex
+
+    For i = lb To UBound(sectionNames)
+        If sectionIndexPerRow(i) = 0 Then
+            displayRowCount = displayRowCount + 1
+            taskRowIndices(i) = displayRowCount
+        End If
+    Next i
+End Sub
+
+Private Sub BuildSidebarLayoutWithDuplicates(ByRef sectionNames() As String, ByRef taskNames() As String, _
+                                             ByRef groupRowIndices() As Long, ByRef groupLengths() As Long, _
+                                             ByRef groupNames() As String, ByRef groupCount As Long, _
+                                             ByRef taskRowIndices() As Long, ByRef taskStackIndices() As Long, _
+                                             ByRef taskStackCounts() As Long, ByRef sidebarTaskNames() As String, _
+                                             ByRef sidebarTaskRowIndices() As Long, ByRef displayRowCount As Long)
+    Dim i As Long
+    Dim lb As Long
+    Dim key As String
+    Dim keyIndex As Long
+    Dim keyCount As Long
+    Dim keyNames() As String
+    Dim keyCounts() As Long
+    Dim keyIndexPerRow() As Long
+    Dim sectionCount As Long
+    Dim sectionList() As String
+    Dim sectionIndexPerRow() As Long
+    Dim sectionIndex As Long
+    Dim hasSections As Boolean
+
+    groupCount = 0
+    displayRowCount = 0
+    On Error Resume Next
+    lb = LBound(sectionNames)
+    If Err.Number <> 0 Then
+        On Error GoTo 0
+        Exit Sub
+    End If
+    On Error GoTo 0
+
+    ReDim taskRowIndices(lb To UBound(taskNames))
+    ReDim taskStackIndices(lb To UBound(taskNames))
+    ReDim taskStackCounts(lb To UBound(taskNames))
+    ReDim keyIndexPerRow(lb To UBound(taskNames))
+    ReDim sectionIndexPerRow(lb To UBound(sectionNames))
+
+    hasSections = False
+    For i = lb To UBound(sectionNames)
+        If Len(Trim$(sectionNames(i))) > 0 Then
+            hasSections = True
+            Exit For
+        End If
+    Next i
+
+    If Not hasSections Then
+        For i = lb To UBound(taskNames)
+            key = taskNames(i)
+            keyIndex = FindKeyIndex(keyNames, keyCount, key)
+            If keyIndex = 0 Then
+                keyCount = keyCount + 1
+                ReDim Preserve keyNames(1 To keyCount)
+                ReDim Preserve keyCounts(1 To keyCount)
+                ReDim Preserve sidebarTaskNames(1 To keyCount)
+                ReDim Preserve sidebarTaskRowIndices(1 To keyCount)
+                keyNames(keyCount) = key
+                keyCounts(keyCount) = 1
+                displayRowCount = displayRowCount + 1
+                sidebarTaskNames(keyCount) = taskNames(i)
+                sidebarTaskRowIndices(keyCount) = displayRowCount
+                taskRowIndices(i) = displayRowCount
+                taskStackIndices(i) = 1
+                keyIndexPerRow(i) = keyCount
+            Else
+                keyCounts(keyIndex) = keyCounts(keyIndex) + 1
+                taskRowIndices(i) = sidebarTaskRowIndices(keyIndex)
+                taskStackIndices(i) = keyCounts(keyIndex)
+                keyIndexPerRow(i) = keyIndex
+            End If
+        Next i
+
+        For i = lb To UBound(taskNames)
+            taskStackCounts(i) = keyCounts(keyIndexPerRow(i))
+        Next i
+        Exit Sub
+    End If
+
+    For i = lb To UBound(sectionNames)
+        If Len(Trim$(sectionNames(i))) = 0 Then
+            sectionIndexPerRow(i) = 0
+        Else
+            sectionIndex = FindKeyIndex(sectionList, sectionCount, sectionNames(i))
+            If sectionIndex = 0 Then
+                sectionCount = sectionCount + 1
+                ReDim Preserve sectionList(1 To sectionCount)
+                sectionList(sectionCount) = sectionNames(i)
+                sectionIndex = sectionCount
+            End If
+            sectionIndexPerRow(i) = sectionIndex
+        End If
+    Next i
+
+    For sectionIndex = 1 To sectionCount
+        groupCount = groupCount + 1
+        ReDim Preserve groupRowIndices(1 To groupCount)
+        ReDim Preserve groupLengths(1 To groupCount)
+        ReDim Preserve groupNames(1 To groupCount)
+        displayRowCount = displayRowCount + 1
+        groupRowIndices(groupCount) = displayRowCount
+        groupLengths(groupCount) = 0
+        groupNames(groupCount) = sectionList(sectionIndex)
+
+        For i = lb To UBound(sectionNames)
+            If sectionIndexPerRow(i) = sectionIndex Then
+                key = sectionNames(i) & "|" & taskNames(i)
+                keyIndex = FindKeyIndex(keyNames, keyCount, key)
+                If keyIndex = 0 Then
+                    keyCount = keyCount + 1
+                    ReDim Preserve keyNames(1 To keyCount)
+                    ReDim Preserve keyCounts(1 To keyCount)
+                    ReDim Preserve sidebarTaskNames(1 To keyCount)
+                    ReDim Preserve sidebarTaskRowIndices(1 To keyCount)
+                    keyNames(keyCount) = key
+                    keyCounts(keyCount) = 1
+                    displayRowCount = displayRowCount + 1
+                    sidebarTaskNames(keyCount) = taskNames(i)
+                    sidebarTaskRowIndices(keyCount) = displayRowCount
+                    taskRowIndices(i) = displayRowCount
+                    taskStackIndices(i) = 1
+                    keyIndexPerRow(i) = keyCount
+                Else
+                    keyCounts(keyIndex) = keyCounts(keyIndex) + 1
+                    taskRowIndices(i) = sidebarTaskRowIndices(keyIndex)
+                    taskStackIndices(i) = keyCounts(keyIndex)
+                    keyIndexPerRow(i) = keyIndex
+                End If
+
+                groupLengths(groupCount) = groupLengths(groupCount) + 1
+            End If
+        Next i
+    Next sectionIndex
+
+    For i = lb To UBound(sectionNames)
+        If sectionIndexPerRow(i) = 0 Then
+            key = "__EMPTY__|" & taskNames(i)
+            keyIndex = FindKeyIndex(keyNames, keyCount, key)
+            If keyIndex = 0 Then
+                keyCount = keyCount + 1
+                ReDim Preserve keyNames(1 To keyCount)
+                ReDim Preserve keyCounts(1 To keyCount)
+                ReDim Preserve sidebarTaskNames(1 To keyCount)
+                ReDim Preserve sidebarTaskRowIndices(1 To keyCount)
+                keyNames(keyCount) = key
+                keyCounts(keyCount) = 1
+                displayRowCount = displayRowCount + 1
+                sidebarTaskNames(keyCount) = taskNames(i)
+                sidebarTaskRowIndices(keyCount) = displayRowCount
+                taskRowIndices(i) = displayRowCount
+                taskStackIndices(i) = 1
+                keyIndexPerRow(i) = keyCount
+            Else
+                keyCounts(keyIndex) = keyCounts(keyIndex) + 1
+                taskRowIndices(i) = sidebarTaskRowIndices(keyIndex)
+                taskStackIndices(i) = keyCounts(keyIndex)
+                keyIndexPerRow(i) = keyIndex
+            End If
+        End If
+    Next i
+
+    For i = lb To UBound(taskNames)
+        taskStackCounts(i) = keyCounts(keyIndexPerRow(i))
+    Next i
+End Sub
+
+Private Function FindKeyIndex(ByRef keyNames() As String, ByVal keyCount As Long, ByVal targetKey As String) As Long
+    Dim i As Long
+
+    For i = 1 To keyCount
+        If keyNames(i) = targetKey Then
+            FindKeyIndex = i
+            Exit Function
+        End If
+    Next i
+
+    FindKeyIndex = 0
+End Function
+
+Private Function EstimateWrappedLines(ByVal labelText As String, ByVal availableWidth As Double, _
+                                      ByVal fontSize As Long) As Long
+    Dim words() As String
+    Dim currentLine As String
+    Dim i As Long
+    Dim lineCount As Long
+    Dim candidate As String
+
+    If Len(Trim$(labelText)) = 0 Then
+        EstimateWrappedLines = 1
+        Exit Function
+    End If
+
+    words = Split(labelText, " ")
+    lineCount = 1
+    currentLine = ""
+
+    For i = LBound(words) To UBound(words)
+        If currentLine = "" Then
+            candidate = words(i)
+        Else
+            candidate = currentLine & " " & words(i)
+        End If
+
+        If EstimateTextWidth(candidate, fontSize) <= availableWidth Then
+            currentLine = candidate
+        Else
+            lineCount = lineCount + 1
+            currentLine = words(i)
+        End If
+    Next i
+
+    EstimateWrappedLines = lineCount
+End Function
+
+Private Function TruncateTextWithEllipsis(ByVal labelText As String, ByVal availableWidth As Double, _
+                                          ByVal fontSize As Long, ByVal padding As Double) As String
+    Dim truncated As String
+    Dim ellipsis As String
+    Dim i As Long
+    Dim maxWidth As Double
+
+    ellipsis = "..."
+    maxWidth = Application.WorksheetFunction.Max(1, availableWidth - padding * 2)
+
+    If EstimateTextWidth(labelText, fontSize) <= maxWidth Then
+        TruncateTextWithEllipsis = labelText
+        Exit Function
+    End If
+
+    If EstimateTextWidth(ellipsis, fontSize) > maxWidth Then
+        TruncateTextWithEllipsis = ""
+        Exit Function
+    End If
+
+    truncated = labelText
+    For i = Len(labelText) To 1 Step -1
+        truncated = Left$(labelText, i) & ellipsis
+        If EstimateTextWidth(truncated, fontSize) <= maxWidth Then
+            TruncateTextWithEllipsis = truncated
+            Exit Function
+        End If
+    Next i
+
+    TruncateTextWithEllipsis = ellipsis
+End Function
+
+Private Sub ComputeRowTops(ByVal baseTop As Double, ByRef rowHeights() As Double, _
+                           ByRef rowTops() As Double, ByRef totalHeight As Double)
+    Dim i As Long
+    Dim currentTop As Double
+
+    If UBound(rowHeights) < LBound(rowHeights) Then
+        totalHeight = 0
+        Exit Sub
+    End If
+
+    ReDim rowTops(LBound(rowHeights) To UBound(rowHeights))
+    currentTop = baseTop
+    For i = LBound(rowHeights) To UBound(rowHeights)
+        rowTops(i) = currentTop
+        currentTop = currentTop + rowHeights(i)
+    Next i
+    totalHeight = currentTop - baseTop
+End Sub
+
+Private Function GetSidebarRowTextHeight(ByVal taskName As String, ByVal columnWidth As Double, _
+                                         ByVal fontSize As Long, ByVal padding As Double) As Double
+    Dim availableWidth As Double
+    Dim lines As Long
+
+    availableWidth = Application.WorksheetFunction.Max(1, columnWidth - padding * 2)
+    lines = EstimateWrappedLines(taskName, availableWidth, fontSize)
+    GetSidebarRowTextHeight = lines * EstimateTextHeight(fontSize) + 4
+End Function
+
+Private Sub ComputeSidebarWidths(ByRef sectionNames() As String, ByRef taskNames() As String, _
+                                 ByVal fontSize As Long, ByVal padding As Double, _
+                                 ByRef sectionColWidth As Double, ByRef taskColWidth As Double)
+    Dim i As Long
+    Dim widthCandidate As Double
+    Dim lb As Long
+
+    sectionColWidth = 0
+    taskColWidth = 0
+
+    On Error Resume Next
+    lb = LBound(sectionNames)
+    If Err.Number <> 0 Then
+        On Error GoTo 0
+        Exit Sub
+    End If
+    On Error GoTo 0
+
+    For i = lb To UBound(sectionNames)
+        widthCandidate = EstimateTextWidth(sectionNames(i), fontSize) + padding * 2
+        If widthCandidate > sectionColWidth Then
+            sectionColWidth = widthCandidate
+        End If
+    Next i
+
+    For i = lb To UBound(taskNames)
+        widthCandidate = EstimateTextWidth(taskNames(i), fontSize) + padding * 2
+        If widthCandidate > taskColWidth Then
+            taskColWidth = widthCandidate
+        End If
+    Next i
+End Sub
+
+Private Function DrawTaskBar(ByVal ws As Worksheet, ByVal leftPos As Double, ByVal topPos As Double, _
+                             ByVal width As Double, ByVal height As Double, _
+                             ByVal taskName As String, ByVal sectionName As String, _
+                             ByVal fillColor As Long, ByVal lineColor As Long, _
+                             ByVal showBorder As Boolean) As Shape
+    Dim shp As Shape
+
+    Set shp = ws.Shapes.AddShape(msoShapeRoundedRectangle, leftPos, topPos, width, height)
+    shp.Fill.ForeColor.RGB = fillColor
+    If showBorder Then
+        shp.Line.ForeColor.RGB = DarkenColor(fillColor, 0.2)
+        shp.Line.Weight = 0.75
+        shp.Line.Visible = msoTrue
+    Else
+        shp.Line.Visible = msoFalse
+    End If
+    shp.TextFrame2.TextRange.Text = taskName
+    shp.TextFrame2.TextRange.Font.Size = 9
+    shp.TextFrame2.TextRange.Font.Fill.ForeColor.RGB = GetContrastingTextColor(fillColor)
+    shp.TextFrame2.VerticalAnchor = msoAnchorMiddle
+    shp.TextFrame2.TextRange.ParagraphFormat.Alignment = msoAlignCenter
+    shp.AlternativeText = sectionName
+
+    Set DrawTaskBar = shp
+End Function
+
+Private Sub DrawEventShape(ByVal ws As Worksheet, ByVal shapeType As MsoAutoShapeType, _
+                           ByVal leftPos As Double, ByVal topPos As Double, _
+                           ByVal width As Double, ByVal height As Double, ByVal fillColor As Long, _
+                           ByVal showBorder As Boolean, Optional ByVal fillTransparency As Double = 0)
+    Dim shp As Shape
+
+    Set shp = ws.Shapes.AddShape(shapeType, leftPos, topPos, width, height)
+    shp.Fill.ForeColor.RGB = fillColor
+    shp.Fill.Transparency = ClampTransparency(fillTransparency) / 100
+    If showBorder Then
+        shp.Line.Visible = msoTrue
+        shp.Line.ForeColor.RGB = DarkenColor(fillColor, 0.2)
+        shp.Line.Weight = 0.75
+    Else
+        shp.Line.Visible = msoFalse
+    End If
+    shp.ZOrder msoBringToFront
+End Sub
+
+Private Sub DrawLegend(ByVal ws As Worksheet, ByVal leftPos As Double, ByVal topPos As Double, _
+                       ByVal width As Double, ByVal height As Double, ByVal lineTypesTable As ListObject, _
+                       ByVal eventTypesTable As ListObject, ByVal padding As Double, _
+                       ByVal barHeightNominal As Double, ByRef usedLineTypes() As String, _
+                       ByVal usedLineTypeCount As Long, ByRef usedEventTypes() As String, _
+                       ByVal usedEventTypeCount As Long, ByVal showEventBorder As Boolean)
+    Dim symbolSize As Double
+    Dim rowHeight As Double
+    Dim lineCount As Long
+    Dim eventCount As Long
+    Dim rowsCount As Long
+    Dim rowIndex As Long
+    Dim lineRow As ListRow
+    Dim eventRow As ListRow
+    Dim lineType As String
+    Dim lineMeaning As String
+    Dim eventName As String
+    Dim eventMeaning As String
+    Dim lineColor As Long
+    Dim lineTransparency As Double
+    Dim eventColor As Long
+    Dim eventTransparency As Double
+    Dim eventShape As MsoAutoShapeType
+    Dim eventHeight As Double
+    Dim lineRect As Shape
+    Dim textBox As Shape
+    Dim leftColumnWidth As Double
+    Dim rightColumnWidth As Double
+    Dim rightColumnLeft As Double
+    Dim textLeft As Double
+    Dim shapeTop As Double
+    Dim rectHeight As Double
+    Dim meaningIndex As Long
+    Dim eventNameIndex As Long
+    Dim eventMeaningIndex As Long
+    Dim maxLineTextWidth As Double
+    Dim maxEventTextWidth As Double
+    Dim maxEventShapeSize As Double
+    Dim blocksGap As Double
+    Dim rowGapPoints As Double
+    Dim rowPitch As Double
+    Dim lineMeaningIndex As Long
+
+    lineCount = usedLineTypeCount
+    eventCount = usedEventTypeCount
+    rowsCount = Application.WorksheetFunction.Max(lineCount, eventCount)
+    If rowsCount <= 0 Then
+        Exit Sub
+    End If
+
+    symbolSize = 5 * 2.83465
+    rectHeight = symbolSize * 0.6
+    maxEventShapeSize = symbolSize
+    maxLineTextWidth = 0
+    maxEventTextWidth = 0
+
+    blocksGap = 10 * 2.83465 ' 1 cm
+
+    rowGapPoints = 2 * 2.83465 ' 2 мм межстрочный зазор
+
+    If Not lineTypesTable Is Nothing Then
+        lineMeaningIndex = GetTableColumnIndex(lineTypesTable, "Что означает")
+
+        For Each lineRow In lineTypesTable.ListRows
+            lineType = Trim$(CStr(lineRow.Range.Cells(1, 1).value))
+            If Len(lineType) > 0 And IsKeyUsed(usedLineTypes, usedLineTypeCount, lineType) Then
+                If lineMeaningIndex > 0 Then
+                    lineMeaning = CStr(lineRow.Range.Cells(1, lineMeaningIndex).Value)
+                Else
+                    lineMeaning = lineType
+                End If
+                maxLineTextWidth = Application.WorksheetFunction.Max(maxLineTextWidth, EstimateTextWidth(lineMeaning, 9))
+            End If
+        Next lineRow
+    End If
+
+    If Not eventTypesTable Is Nothing Then
+        eventNameIndex = GetTableColumnIndex(eventTypesTable, "Событие")
+        eventMeaningIndex = GetTableColumnIndex(eventTypesTable, "Что означает")
+        If eventNameIndex = 0 Then
+            Exit Sub
+        End If
+        For Each eventRow In eventTypesTable.ListRows
+            eventName = Trim$(CStr(eventRow.Range.Cells(1, eventNameIndex).value))
+            If Len(eventName) > 0 And IsKeyUsed(usedEventTypes, usedEventTypeCount, eventName) Then
+                eventHeight = 0
+                eventColor = RGB(91, 155, 213)
+                eventShape = msoShapeOval
+                eventTransparency = GetEventTypeTransparency(eventTypesTable, eventName, 0)
+                If GetEventTypeInfo(eventTypesTable, eventName, eventShape, eventColor, eventHeight) = False Then
+                    eventHeight = 0
+                End If
+                If eventHeight <= 0 Then
+                    eventHeight = barHeightNominal
+                End If
+                maxEventShapeSize = Application.WorksheetFunction.Max(maxEventShapeSize, eventHeight)
+                If eventMeaningIndex > 0 Then
+                    eventMeaning = CStr(eventRow.Range.Cells(1, eventMeaningIndex).value)
+                Else
+                    eventMeaning = eventName
+                End If
+                maxEventTextWidth = Application.WorksheetFunction.Max(maxEventTextWidth, EstimateTextWidth(eventMeaning, 9))
+            End If
+        Next eventRow
+    End If
+
+    maxLineTextWidth = maxLineTextWidth * 1.2 + 20
+    maxEventTextWidth = maxEventTextWidth * 1.2 + 20
+
+    rowHeight = Application.WorksheetFunction.Max(Application.WorksheetFunction.Max(rectHeight, maxEventShapeSize), 12)
+    rowPitch = rowHeight + rowGapPoints
+    leftColumnWidth = padding + symbolSize + 10 + maxLineTextWidth + padding
+    rightColumnWidth = padding + maxEventShapeSize + 10 + maxEventTextWidth + padding
+    rightColumnLeft = leftPos + leftColumnWidth + blocksGap
+
+    rowIndex = 0
+    If Not lineTypesTable Is Nothing Then
+        For Each lineRow In lineTypesTable.ListRows
+            lineType = Trim$(CStr(lineRow.Range.Cells(1, 1).value))
+            If Len(lineType) > 0 And IsKeyUsed(usedLineTypes, usedLineTypeCount, lineType) Then
+                rowIndex = rowIndex + 1
+                lineColor = RGB(91, 155, 213)
+                lineTransparency = GetLineTypeTransparency(lineTypesTable, lineType, 0)
+                If lineRow.Range.Cells(1, 2).Interior.ColorIndex <> xlColorIndexNone Then
+                    lineColor = lineRow.Range.Cells(1, 2).Interior.Color
+                End If
+
+                If lineMeaningIndex > 0 Then
+                    lineMeaning = CStr(lineRow.Range.Cells(1, lineMeaningIndex).Value)
+                Else
+                    lineMeaning = lineType
+                End If
+
+                shapeTop = topPos + padding + (rowIndex - 1) * rowPitch + (rowHeight - rectHeight) / 2
+                Set lineRect = ws.Shapes.AddShape(msoShapeRectangle, leftPos + padding + (symbolSize - symbolSize) / 2, shapeTop, _
+                                                  symbolSize, rectHeight)
+                lineRect.Fill.ForeColor.RGB = lineColor
+                lineRect.Fill.Transparency = ClampTransparency(lineTransparency) / 100
+                lineRect.Line.ForeColor.RGB = DarkenColor(lineColor, 0.2)
+                lineRect.Line.Weight = 0.75
+
+                textLeft = leftPos + padding + symbolSize + 10
+        Set textBox = ws.Shapes.AddTextbox(msoTextOrientationHorizontal, textLeft, _
+                                           topPos + padding + (rowIndex - 1) * rowPitch, _
+                                           leftColumnWidth - (textLeft - leftPos) - padding, rowHeight)
+        textBox.TextFrame2.TextRange.Text = lineMeaning
+        textBox.TextFrame2.TextRange.Font.Size = 9
+                textBox.TextFrame2.AutoSize = msoAutoSizeNone
+        textBox.TextFrame2.WordWrap = msoFalse
+        textBox.TextFrame2.TextRange.ParagraphFormat.WordWrap = msoFalse
+        textBox.TextFrame2.VerticalAnchor = msoAnchorMiddle
+        textBox.TextFrame2.TextRange.ParagraphFormat.Alignment = msoAlignLeft
+        textBox.Fill.Visible = msoFalse
+        textBox.Line.Visible = msoFalse
+            End If
+        Next lineRow
+    End If
+
+    rowIndex = 0
+    If Not eventTypesTable Is Nothing Then
+        For Each eventRow In eventTypesTable.ListRows
+            eventName = Trim$(CStr(eventRow.Range.Cells(1, eventNameIndex).value))
+            If Len(eventName) > 0 And IsKeyUsed(usedEventTypes, usedEventTypeCount, eventName) Then
+                rowIndex = rowIndex + 1
+                eventShape = msoShapeOval
+                eventColor = RGB(91, 155, 213)
+                eventHeight = 0
+                If GetEventTypeInfo(eventTypesTable, eventName, eventShape, eventColor, eventHeight) = False Then
+                    eventShape = msoShapeOval
+                    eventColor = RGB(91, 155, 213)
+                End If
+                If eventHeight <= 0 Then
+                    eventHeight = barHeightNominal
+                End If
+
+                If eventMeaningIndex > 0 Then
+                    eventMeaning = CStr(eventRow.Range.Cells(1, eventMeaningIndex).value)
+                Else
+                    eventMeaning = eventName
+                End If
+
+                shapeTop = topPos + padding + (rowIndex - 1) * rowPitch + (rowHeight - eventHeight) / 2
+                DrawEventShape ws, eventShape, rightColumnLeft + padding + (maxEventShapeSize - eventHeight) / 2, shapeTop, eventHeight, _
+                    eventHeight, eventColor, showEventBorder, eventTransparency
+
+                textLeft = rightColumnLeft + padding + eventHeight + 10
+        Set textBox = ws.Shapes.AddTextbox(msoTextOrientationHorizontal, textLeft, _
+                                           topPos + padding + (rowIndex - 1) * rowPitch, _
+                                           rightColumnWidth - (textLeft - rightColumnLeft) - padding, rowHeight)
+        textBox.TextFrame2.TextRange.Text = eventMeaning
+        textBox.TextFrame2.TextRange.Font.Size = 9
+                textBox.TextFrame2.AutoSize = msoAutoSizeNone
+        textBox.TextFrame2.WordWrap = msoFalse
+        textBox.TextFrame2.TextRange.ParagraphFormat.WordWrap = msoFalse
+        textBox.TextFrame2.VerticalAnchor = msoAnchorMiddle
+        textBox.TextFrame2.TextRange.ParagraphFormat.Alignment = msoAlignLeft
+        textBox.Fill.Visible = msoFalse
+        textBox.Line.Visible = msoFalse
+            End If
+        Next eventRow
+    End If
+End Sub
+
+Private Sub DrawTimelineDividers(ByVal ws As Worksheet, ByVal diagramLeft As Double, ByVal diagramTop As Double, _
+                                 ByVal diagramWidth As Double, ByVal yearHeaderHeight As Double, _
+                                 ByVal totalHeaderHeight As Double, ByVal totalHeight As Double, _
+                                 ByVal displayRowCount As Long, ByRef rowTops() As Double, _
+                                 ByRef rowHeights() As Double, ByVal timelineLeft As Double, _
+                                 ByVal timelineWidth As Double, ByRef timelineData As timelineData, _
+                                 ByVal sidebarMode As String, ByVal sidebarWidth As Double, _
+                                 ByVal sidebarGap As Double, ByVal vertThickness As Double, _
+                                 ByVal yearVertThickness As Double, ByVal horizThickness As Double, _
+                                 ByVal vertColor As Long, ByVal vertTransparency As Double, _
+                                 ByVal horizColor As Long, ByVal horizTransparency As Double)
+    Dim i As Long
+    Dim lineLeft As Double
+    Dim lineTop As Double
+    Dim lineBottom As Double
+    Dim lineRight As Double
+    Dim lineShape As Shape
+    Dim sidebarLeft As Double
+    Dim sidebarRight As Double
+    Dim periodTop As Double
+    Dim currentYear As Long
+
+    If displayRowCount <= 0 Then
+        Exit Sub
+    End If
+
+    lineTop = diagramTop
+    lineBottom = diagramTop + totalHeaderHeight + totalHeight
+    lineRight = diagramLeft + diagramWidth
+    periodTop = diagramTop + yearHeaderHeight
+
+    If vertThickness > 0 Then
+        Set lineShape = ws.Shapes.AddLine(timelineLeft, lineTop, timelineLeft, lineBottom)
+        lineShape.Line.ForeColor.RGB = vertColor
+        lineShape.Line.transparency = ClampTransparency(vertTransparency) / 100
+        lineShape.Line.Weight = vertThickness
+
+        currentYear = Year(timelineData.PeriodStarts(1))
+        For i = 1 To timelineData.count
+            lineLeft = timelineLeft + timelineData.CumulativeWidths(i)
+            Set lineShape = ws.Shapes.AddLine(lineLeft, periodTop, lineLeft, lineBottom)
+            lineShape.Line.ForeColor.RGB = vertColor
+            lineShape.Line.transparency = ClampTransparency(vertTransparency) / 100
+            lineShape.Line.Weight = vertThickness
+
+            If Year(timelineData.PeriodStarts(i)) <> currentYear Then
+                currentYear = Year(timelineData.PeriodStarts(i))
+                Set lineShape = ws.Shapes.AddLine(lineLeft, lineTop, lineLeft, lineBottom)
+                lineShape.Line.ForeColor.RGB = vertColor
+                lineShape.Line.transparency = ClampTransparency(vertTransparency) / 100
+                lineShape.Line.Weight = yearVertThickness
+            End If
+        Next i
+
+        Set lineShape = ws.Shapes.AddLine(timelineLeft + timelineWidth, lineTop, timelineLeft + timelineWidth, lineBottom)
+        lineShape.Line.ForeColor.RGB = vertColor
+        lineShape.Line.transparency = ClampTransparency(vertTransparency) / 100
+        lineShape.Line.Weight = vertThickness
+
+        If LCase$(sidebarMode) = "слева" Or LCase$(sidebarMode) = "с обеих сторон" Then
+            sidebarLeft = diagramLeft
+            sidebarRight = diagramLeft + sidebarWidth
+            Set lineShape = ws.Shapes.AddLine(sidebarRight, lineTop, sidebarRight, lineBottom)
+            lineShape.Line.ForeColor.RGB = vertColor
+            lineShape.Line.transparency = ClampTransparency(vertTransparency) / 100
+            lineShape.Line.Weight = vertThickness
+        End If
+
+        If LCase$(sidebarMode) = "справа" Or LCase$(sidebarMode) = "с обеих сторон" Then
+            sidebarLeft = timelineLeft + timelineWidth + sidebarGap
+            sidebarRight = sidebarLeft + sidebarWidth
+            Set lineShape = ws.Shapes.AddLine(sidebarLeft, lineTop, sidebarLeft, lineBottom)
+            lineShape.Line.ForeColor.RGB = vertColor
+            lineShape.Line.transparency = ClampTransparency(vertTransparency) / 100
+            lineShape.Line.Weight = vertThickness
+        End If
+    End If
+
+    If horizThickness > 0 Then
+        For i = 1 To displayRowCount
+            lineLeft = diagramLeft
+            lineTop = rowTops(i)
+            Set lineShape = ws.Shapes.AddLine(lineLeft, lineTop, lineRight, lineTop)
+            lineShape.Line.ForeColor.RGB = horizColor
+            lineShape.Line.transparency = ClampTransparency(horizTransparency) / 100
+            lineShape.Line.Weight = horizThickness
+        Next i
+        lineTop = rowTops(displayRowCount) + rowHeights(displayRowCount)
+        Set lineShape = ws.Shapes.AddLine(diagramLeft, lineTop, lineRight, lineTop)
+        lineShape.Line.ForeColor.RGB = horizColor
+        lineShape.Line.transparency = ClampTransparency(horizTransparency) / 100
+        lineShape.Line.Weight = horizThickness
+    End If
+End Sub
+
+Private Sub DrawTodayStripe(ByVal ws As Worksheet, ByVal timelineLeft As Double, ByVal topPos As Double, _
+                            ByVal totalHeight As Double, ByVal displayRowCount As Long, _
+                            ByRef timelineData As timelineData, ByVal stripeThickness As Double, _
+                            ByVal stripeColor As Long, ByVal stripeTransparency As Double)
+    Dim todayDate As Date
+    Dim offset As Double
+    Dim stripeHeight As Double
+    Dim stripeLeft As Double
+    Dim stripe As Shape
+
+    If displayRowCount <= 0 Or stripeThickness <= 0 Then
+        Exit Sub
+    End If
+
+    todayDate = Date
+    If todayDate < timelineData.PeriodStarts(1) Or todayDate > timelineData.PeriodEnds(timelineData.count) Then
+        Exit Sub
+    End If
+
+    offset = GetTimelineOffset(timelineData, todayDate)
+    stripeHeight = totalHeight
+    stripeLeft = timelineLeft + offset - stripeThickness / 2
+
+    Set stripe = ws.Shapes.AddShape(msoShapeRectangle, stripeLeft, topPos, stripeThickness, stripeHeight)
+    stripe.Fill.ForeColor.RGB = stripeColor
+    stripe.Fill.transparency = ClampTransparency(stripeTransparency) / 100
+    stripe.Line.Visible = msoFalse
+    stripe.ZOrder msoBringToFront
+End Sub
+
+Private Sub ClearGanttShapes(ByVal ws As Worksheet)
+    Dim shp As Shape
+    Dim toDelete As Collection
+    Dim i As Long
+
+    Set toDelete = New Collection
+
+    For Each shp In ws.Shapes
+        If shp.name <> BUTTON_NAME Then
+            toDelete.Add shp
+        End If
+    Next shp
+
+    For i = 1 To toDelete.count
+        toDelete(i).Delete
+    Next i
+End Sub
+
+Private Sub EnsureGanttButton(ByVal ws As Worksheet)
+    Dim btn As Shape
+    Dim cmToPoints As Double
+    Dim mmToPoints As Double
+
+    cmToPoints = 28.3465
+    mmToPoints = 2.83465
+
+    On Error Resume Next
+    Set btn = ws.Shapes(BUTTON_NAME)
+    On Error GoTo 0
+
+    If btn Is Nothing Then
+        Set btn = ws.Shapes.AddShape(msoShapeRoundedRectangle, 5 * mmToPoints, 5 * mmToPoints, _
+                                     5 * cmToPoints, 3 * cmToPoints)
+        btn.name = BUTTON_NAME
+        btn.OnAction = "CreateGanttDiagram"
+        btn.TextFrame2.TextRange.Text = "Создать диаграмму"
+        btn.TextFrame2.TextRange.Font.Size = 10
+        btn.TextFrame2.VerticalAnchor = msoAnchorMiddle
+        btn.TextFrame2.TextRange.ParagraphFormat.Alignment = msoAlignCenter
+    Else
+        btn.Left = 5 * mmToPoints
+        btn.Top = 5 * mmToPoints
+        btn.width = 5 * cmToPoints
+        btn.height = 3 * cmToPoints
+        btn.OnAction = "CreateGanttDiagram"
+    End If
+End Sub
+
+Private Sub EnsureExportButtons(ByVal ws As Worksheet)
+    Dim mmToPoints As Double
+    Dim btnWidth As Double
+    Dim btnHeight As Double
+    Dim startLeft As Double
+    Dim startTop As Double
+    Dim gap As Double
+    Dim mainBtn As Shape
+
+    mmToPoints = 2.83465
+
+    ' Match width and left position of the main "Создать диаграмму" button
+    On Error Resume Next
+    Set mainBtn = ws.Shapes(BUTTON_NAME)
+    On Error GoTo 0
+
+    If Not mainBtn Is Nothing Then
+        btnWidth = mainBtn.Width
+        startLeft = mainBtn.Left
+        startTop = mainBtn.Top + mainBtn.Height + 10 * mmToPoints
+    Else
+        ' Fallback to previous defaults if main button is missing
+        btnWidth = 5 * 28.3465   ' 5 cm
+        startLeft = 5 * mmToPoints
+        startTop = 5 * mmToPoints + 3 * 28.3465 + 10 * mmToPoints
+    End If
+
+    btnHeight = 12 * mmToPoints
+    gap = 10 * mmToPoints
+
+    EnsureExportButton ws, BUTTON_PDF_NAME, "Экспорт в PDF", "ExportGanttToPDF", startLeft, startTop, _
+        btnWidth, btnHeight
+
+    EnsureExportButton ws, BUTTON_PNG_NAME, "Экспорт в PNG", "ExportGanttToPNG", startLeft, _
+        startTop + (btnHeight + gap) * 1, btnWidth, btnHeight
+
+    EnsureExportButton ws, BUTTON_JPEG_NAME, "Экспорт в JPEG", "ExportGanttToJPEG", startLeft, _
+        startTop + (btnHeight + gap) * 2, btnWidth, btnHeight
+End Sub
+
+Private Sub EnsureExportButton(ByVal ws As Worksheet, ByVal name As String, ByVal caption As String, _
+                               ByVal actionName As String, ByVal leftPos As Double, ByVal topPos As Double, _
+                               ByVal width As Double, ByVal height As Double)
+    Dim btn As Shape
+
+    On Error Resume Next
+    Set btn = ws.Shapes(name)
+    On Error GoTo 0
+
+    If btn Is Nothing Then
+        Set btn = ws.Shapes.AddShape(msoShapeRoundedRectangle, leftPos, topPos, width, height)
+        btn.name = name
+    Else
+        btn.Left = leftPos
+        btn.Top = topPos
+        btn.width = width
+        btn.height = height
+    End If
+
+    btn.OnAction = actionName
+    btn.TextFrame2.TextRange.Text = caption
+    btn.TextFrame2.TextRange.Font.Size = 9
+    btn.TextFrame2.VerticalAnchor = msoAnchorMiddle
+    btn.TextFrame2.TextRange.ParagraphFormat.Alignment = msoAlignCenter
+End Sub
+
+Public Sub ExportGanttToPDF()
+    ExportGanttToFormat "PDF"
+End Sub
+
+Public Sub ExportGanttToPNG()
+    ExportGanttToFormat "PNG"
+End Sub
+
+Public Sub ExportGanttToJPEG()
+    ExportGanttToFormat "JPEG"
+End Sub
+
+Private Sub ExportGanttToFormat(ByVal exportFormat As String)
+    Dim ws As Worksheet
+    Dim filePath As Variant
+    Dim fmt As String
+    Dim exportRange As Range
+
+    Set ws = GetWorksheetByName(SHEET_GANTT)
+    If ws Is Nothing Then Exit Sub
+
+    fmt = UCase$(Trim$(exportFormat))
+
+    ' Ask where to save
+    Select Case fmt
+        Case "PDF"
+            filePath = Application.GetSaveAsFilename(InitialFileName:="gantt.pdf", FileFilter:="PDF (*.pdf), *.pdf")
+        Case "PNG"
+            filePath = Application.GetSaveAsFilename(InitialFileName:="gantt.png", FileFilter:="PNG (*.png), *.png")
+        Case "JPEG", "JPG"
+            filePath = Application.GetSaveAsFilename(InitialFileName:="gantt.jpg", FileFilter:="JPEG (*.jpg), *.jpg")
+        Case Else
+            MsgBox "Неизвестный формат: " & exportFormat, vbExclamation
+            Exit Sub
+    End Select
+
+    If VarType(filePath) = vbBoolean Then Exit Sub
+    If Len(CStr(filePath)) = 0 Then Exit Sub
+
+    Application.ScreenUpdating = False
+    Application.EnableEvents = False
+    On Error GoTo EH
+
+    If fmt = "PNG" Then
+        ' PNG with alpha + crop to background rectangle.
+        If Not ExportGanttToPngAlpha(ws, CStr(filePath)) Then
+            MsgBox "Не удалось экспортировать PNG (нет фигур в области диаграммы).", vbExclamation
+        End If
+        GoTo CleanUp
+    End If
+
+    ' For PDF/JPEG we export the UsedRange (current behavior).
+    Set exportRange = ws.UsedRange
+
+    ' Setup PrintArea for PDF (no margins)
+    With ws.PageSetup
+        .PrintArea = exportRange.Address
+        .Zoom = False
+        .FitToPagesWide = 1
+        .FitToPagesTall = 1
+        .LeftMargin = 0
+        .RightMargin = 0
+        .TopMargin = 0
+        .BottomMargin = 0
+        .HeaderMargin = 0
+        .FooterMargin = 0
+    End With
+
+    Select Case fmt
+        Case "PDF"
+            ws.ExportAsFixedFormat Type:=xlTypePDF, Filename:=CStr(filePath), Quality:=xlQualityStandard, _
+                                   IncludeDocProperties:=True, IgnorePrintAreas:=False, OpenAfterPublish:=False
+        Case "JPEG", "JPG"
+            ExportRangeAsImage ws, exportRange, CStr(filePath), "JPEG"
+    End Select
+
+CleanUp:
+    Application.EnableEvents = True
+    Application.ScreenUpdating = True
+    Exit Sub
+
+EH:
+    Application.EnableEvents = True
+    Application.ScreenUpdating = True
+    MsgBox "Ошибка экспорта: " & Err.Description, vbExclamation
+End Sub
+' =========================================================
+' PNG export (alpha + crop to background rectangle)
+' =========================================================
+Private Function ExportGanttToPngAlpha(ByVal ws As Worksheet, ByVal filePath As String) As Boolean
+    ' Exports all diagram shapes within BG_SHAPE_NAME bounds to a PNG with alpha,
+    ' cropped exactly to the background rectangle size (no cell margins).
+    ' Background rectangle itself is used ONLY as a clipping frame (export canvas),
+    ' and is NOT rendered (to keep transparency for overlay workflows).
+
+    Dim bgShp As Shape
+    Dim bgLeft As Double, bgTop As Double, bgW As Double, bgH As Double
+    Dim names As Collection
+    Dim dupNames() As String
+    Dim i As Long
+    Dim sr As ShapeRange
+    Dim grp As Shape
+    Dim chObj As ChartObject
+    Dim pasted As Shape
+
+    On Error GoTo EH
+
+    ExportGanttToPngAlpha = False
+
+    Set bgShp = Nothing
+    On Error Resume Next
+    Set bgShp = ws.Shapes(BG_SHAPE_NAME)
+    On Error GoTo EH
+    If bgShp Is Nothing Then Exit Function
+
+    bgLeft = bgShp.Left
+    bgTop = bgShp.Top
+    bgW = bgShp.Width
+    bgH = bgShp.Height
+
+    Set names = CollectShapesOverlappingRect(ws, bgLeft, bgTop, bgLeft + bgW, bgTop + bgH)
+
+    ' Always add an invisible copy of background shape as a clipping frame.
+    names.Add BG_SHAPE_NAME
+
+    ReDim dupNames(1 To names.Count)
+
+    ' Duplicate shapes (including bg) so we don't disturb originals.
+    For i = 1 To names.Count
+        Dim orig As Shape, dup As Shape
+        Set orig = ws.Shapes(CStr(names(i)))
+        Set dup = orig.Duplicate
+
+        ' Make background duplicate invisible (clipping frame only).
+        If StrComp(orig.Name, BG_SHAPE_NAME, vbTextCompare) = 0 Then
+            dup.Fill.Visible = msoFalse
+            dup.Line.Visible = msoFalse
+        End If
+
+        dupNames(i) = dup.Name
+    Next i
+
+    Set sr = ws.Shapes.Range(dupNames)
+    Set grp = sr.Group
+
+    ' Shift so that the (invisible) background frame is aligned to (0,0).
+    Dim bgDup As Shape
+    Set bgDup = Nothing
+    On Error Resume Next
+    Set bgDup = ws.Shapes(grp.Name).GroupItems(BG_SHAPE_NAME)
+    On Error GoTo EH
+
+    ' If we can't address by name (rare), compute delta by finding the group item with closest bounds.
+    Dim dx As Double, dy As Double
+    dx = bgLeft
+    dy = bgTop
+    If Not bgDup Is Nothing Then
+        dx = bgDup.Left
+        dy = bgDup.Top
+    End If
+
+    grp.Left = grp.Left - dx
+    grp.Top = grp.Top - dy
+
+    ' Create a temporary chart as an export surface (keeps alpha when chart has no fills/lines).
+    Set chObj = ws.ChartObjects.Add(Left:=bgLeft + bgW + 40, Top:=bgTop, Width:=bgW, Height:=bgH)
+    With chObj.Chart
+        .ChartArea.Format.Fill.Visible = msoFalse
+        .ChartArea.Format.Line.Visible = msoFalse
+        .PlotArea.Format.Fill.Visible = msoFalse
+        .PlotArea.Format.Line.Visible = msoFalse
+    End With
+
+    grp.CopyPicture Appearance:=xlScreen, Format:=xlPicture
+    chObj.Chart.Paste
+
+    ' Fit pasted picture to chart bounds.
+    Set pasted = chObj.Chart.Shapes(chObj.Chart.Shapes.Count)
+    pasted.Left = 0
+    pasted.Top = 0
+    pasted.Width = bgW
+    pasted.Height = bgH
+
+    chObj.Chart.Export Filename:=filePath, FilterName:="PNG"
+
+    ExportGanttToPngAlpha = True
+
+CleanUp:
+    On Error Resume Next
+    If Not chObj Is Nothing Then chObj.Delete
+    If Not grp Is Nothing Then grp.Delete
+    On Error GoTo 0
+    Exit Function
+
+EH:
+    ExportGanttToPngAlpha = False
+    Resume CleanUp
+End Function
+
+Private Function CollectShapesOverlappingRect(ByVal ws As Worksheet, ByVal rectLeft As Double, ByVal rectTop As Double, ByVal rectRight As Double, ByVal rectBottom As Double) As Collection
+    ' Returns shape names that overlap the given rectangle (sheet points), excluding UI buttons.
+    Dim col As New Collection
+    Dim shp As Shape
+    Dim btnNames As Collection
+    Set btnNames = GetButtonNames()
+
+    For Each shp In ws.Shapes
+        If ShouldExcludeFromExport(shp, btnNames) Then
+            ' skip
+        ElseIf ShapeOverlapsRect(shp, rectLeft, rectTop, rectRight, rectBottom) Then
+            col.Add shp.Name
+        End If
+    Next shp
+
+    Set CollectShapesOverlappingRect = col
+End Function
+
+Private Function GetButtonNames() As Collection
+    Dim c As New Collection
+    On Error Resume Next
+    c.Add BUTTON_CREATE_NAME
+    c.Add BUTTON_PDF_NAME
+    c.Add BUTTON_PNG_NAME
+    c.Add BUTTON_JPEG_NAME
+    On Error GoTo 0
+    Set GetButtonNames = c
+End Function
+
+Private Function ShouldExcludeFromExport(ByVal shp As Shape, ByVal btnNames As Collection) As Boolean
+    ' Exclude UI and other non-diagram shapes.
+    ShouldExcludeFromExport = False
+
+    ' Background is only a clipping frame (handled separately); exclude from main list.
+    If StrComp(shp.Name, BG_SHAPE_NAME, vbTextCompare) = 0 Then
+        ShouldExcludeFromExport = True
+        Exit Function
+    End If
+
+    ' Buttons.
+    On Error Resume Next
+    Dim tmp As Variant
+    tmp = btnNames(shp.Name)
+    If Err.Number = 0 Then
+        ShouldExcludeFromExport = True
+        Exit Function
+    End If
+    Err.Clear
+    On Error GoTo 0
+End Function
+
+Private Function ShapeOverlapsRect(ByVal shp As Shape, ByVal rectLeft As Double, ByVal rectTop As Double, ByVal rectRight As Double, ByVal rectBottom As Double) As Boolean
+    ' Checks if a shape rectangle overlaps a given rectangle (sheet points).
+    Dim sLeft As Double, sTop As Double, sRight As Double, sBottom As Double
+
+    On Error GoTo EH
+
+    sLeft = shp.Left
+    sTop = shp.Top
+    sRight = sLeft + shp.Width
+    sBottom = sTop + shp.Height
+
+    ShapeOverlapsRect = (sRight > rectLeft) And (sLeft < rectRight) And (sBottom > rectTop) And (sTop < rectBottom)
+    Exit Function
+
+EH:
+    ShapeOverlapsRect = False
+End Function
+
+
+
+
+
+
+
+' =========================================================
+' PNG EXPORT (alpha + crop to background)
+' =========================================================
+
+
+
+
+
+
+
+
+
+
+
+Private Function GetWorksheetByName(ByVal sheetName As String) As Worksheet
+    On Error Resume Next
+    Set GetWorksheetByName = ThisWorkbook.Worksheets(sheetName)
+    On Error GoTo 0
+End Function
+
+Private Function GetWorksheetByNameOrTable(ByVal sheetName As String, ByVal tableName As String) As Worksheet
+    Dim ws As Worksheet
+    Dim listObj As ListObject
+
+    Set GetWorksheetByNameOrTable = GetWorksheetByName(sheetName)
+    If Not GetWorksheetByNameOrTable Is Nothing Then
+        Exit Function
+    End If
+
+    For Each ws In ThisWorkbook.Worksheets
+        For Each listObj In ws.ListObjects
+            If listObj.name = tableName Then
+                Set GetWorksheetByNameOrTable = ws
+                Exit Function
+            End If
+        Next listObj
+    Next ws
+End Function
+
+Private Function GetSettingValue(ByVal settingsTable As ListObject, ByVal parameterName As String, _
+                                 ByVal defaultValue As Variant) As Variant
+    Dim row As ListRow
+
+    For Each row In settingsTable.ListRows
+        If CStr(row.Range.Cells(1, 1).value) = parameterName Then
+            GetSettingValue = row.Range.Cells(1, 2).value
+            Exit Function
+        End If
+    Next row
+
+    GetSettingValue = defaultValue
+End Function
+
+Private Function GetColorFromTable(ByVal colorsTable As ListObject, ByVal objectName As String, _
+                                   ByRef transparency As Double) As Long
+    Dim row As ListRow
+    Dim colorCell As Range
+    Dim transparencyCell As Range
+
+    transparency = -1
+
+    For Each row In colorsTable.ListRows
+        If NormalizeKey(CStr(row.Range.Cells(1, 1).value)) = NormalizeKey(objectName) Then
+            Set colorCell = row.Range.Cells(1, 2)
+            If row.Range.Columns.count >= 3 Then
+                Set transparencyCell = row.Range.Cells(1, 3)
+                If IsNumeric(transparencyCell.value) Then
+                    transparency = CDbl(transparencyCell.value)
+                End If
+            End If
+            If colorCell.Interior.colorIndex <> xlColorIndexNone Then
+                GetColorFromTable = colorCell.Interior.Color
+                Exit Function
+            End If
+            Exit Function
+        End If
+    Next row
+
+    GetColorFromTable = -1
+End Function
+
+Private Function NormalizeKey(ByVal value As String) As String
+    NormalizeKey = LCase$(Trim$(Replace(Replace(value, vbCr, ""), vbLf, "")))
+End Function
+
+Private Function ClampTransparency(ByVal value As Double) As Double
+    If value >= 0 And value <= 1 Then
+        value = value * 100
+    End If
+    ClampTransparency = Application.WorksheetFunction.Min(100, _
+        Application.WorksheetFunction.Max(0, value))
+End Function
+
+Private Function ResolveTransparency(ByVal primary As Double, ByVal fallback As Double) As Double
+    If primary >= 0 Then
+        ResolveTransparency = ClampTransparency(primary)
+    Else
+        ResolveTransparency = ClampTransparency(fallback)
+    End If
+End Function
+
+Private Function DarkenColor(ByVal colorValue As Long, ByVal factor As Double) As Long
+    Dim r As Long
+    Dim g As Long
+    Dim b As Long
+
+    r = colorValue Mod 256
+    g = (colorValue \ 256) Mod 256
+    b = (colorValue \ 65536) Mod 256
+
+    r = Application.WorksheetFunction.Max(0, r * (1 - factor))
+    g = Application.WorksheetFunction.Max(0, g * (1 - factor))
+    b = Application.WorksheetFunction.Max(0, b * (1 - factor))
+
+    DarkenColor = RGB(r, g, b)
+End Function
+
+Private Sub CollectUsedLegendItems(ByVal dataTable As ListObject, ByVal eventTypesTable As ListObject, _
+                                   ByRef taskRowMap() As Long, ByVal rowCount As Long, _
+                                   ByVal timelineStart As Date, ByVal timelineEnd As Date, _
+                                   ByRef eventColumnIndices() As Long, ByRef eventDateColumnIndices() As Long, _
+                                   ByVal barHeightNominal As Double, ByRef usedLineTypes() As String, _
+                                   ByRef usedLineTypeCount As Long, ByRef usedEventTypes() As String, _
+                                   ByRef usedEventTypeCount As Long, ByRef maxEventShapeSize As Double)
+    Dim i As Long
+    Dim eventIdx As Long
+    Dim dataRowIndex As Long
+    Dim startDate As Date
+    Dim endDate As Date
+    Dim lineType As String
+    Dim eventName As String
+    Dim eventDateValue As Variant
+    Dim eventShape As MsoAutoShapeType
+    Dim eventColor As Long
+    Dim eventHeight As Double
+
+    usedLineTypeCount = 0
+    usedEventTypeCount = 0
+    maxEventShapeSize = 5 * 2.83465
+
+    For i = 1 To rowCount
+        dataRowIndex = taskRowMap(i)
+        startDate = dataTable.ListColumns("Дата начала").DataBodyRange.Cells(dataRowIndex, 1).value
+        endDate = dataTable.ListColumns("Дата окончания").DataBodyRange.Cells(dataRowIndex, 1).value
+        lineType = Trim$(CStr(dataTable.ListColumns("Тип линии").DataBodyRange.Cells(dataRowIndex, 1).value))
+
+        If endDate >= startDate Then
+            If Len(lineType) > 0 Then
+                AddUniqueKey usedLineTypes, usedLineTypeCount, lineType
+            End If
+
+            For eventIdx = 1 To 10
+                If eventColumnIndices(eventIdx) > 0 And eventDateColumnIndices(eventIdx) > 0 Then
+                    eventName = Trim$(CStr(dataTable.ListColumns(eventColumnIndices(eventIdx)). _
+                        DataBodyRange.Cells(dataRowIndex, 1).value))
+                    eventDateValue = dataTable.ListColumns(eventDateColumnIndices(eventIdx)). _
+                        DataBodyRange.Cells(dataRowIndex, 1).value
+                    If Len(eventName) > 0 And IsDate(eventDateValue) Then
+                        If CDate(eventDateValue) >= timelineStart And CDate(eventDateValue) <= timelineEnd Then
+                            AddUniqueKey usedEventTypes, usedEventTypeCount, eventName
+                            eventHeight = 0
+                            eventShape = msoShapeOval
+                            eventColor = RGB(91, 155, 213)
+                            If GetEventTypeInfo(eventTypesTable, eventName, eventShape, eventColor, eventHeight) = False Then
+                                eventHeight = 0
+                            End If
+                            If eventHeight <= 0 Then
+                                eventHeight = barHeightNominal
+                            End If
+                            If eventHeight > maxEventShapeSize Then
+                                maxEventShapeSize = eventHeight
+                            End If
+                        End If
+                    End If
+                End If
+            Next eventIdx
+        End If
+    Next i
+End Sub
+
+Private Function GetLegendHeightFromCounts(ByVal lineCount As Long, ByVal eventCount As Long, _
+                                           ByVal padding As Double, ByVal maxEventShapeSize As Double) As Double
+    Dim rowsCount As Long
+    Dim rowHeight As Double
+    Dim symbolSize As Double
+    Dim rowGapPoints As Double
+    Dim extraBottomPoints As Double
+
+    rowsCount = Application.WorksheetFunction.Max(lineCount, eventCount)
+    If rowsCount <= 0 Then
+        GetLegendHeightFromCounts = 0
+        Exit Function
+    End If
+
+    ' Must match DrawLegend row sizing/gaps so background covers legend fully
+    symbolSize = 5 * 2.83465
+    rowHeight = Application.WorksheetFunction.Max(Application.WorksheetFunction.Max(symbolSize * 0.6, _
+        maxEventShapeSize), 12)
+
+    rowGapPoints = 2 * 2.83465        ' 2 мм межстрочный зазор
+    extraBottomPoints = 3 * 2.83465   ' запас снизу от обрезания
+
+    GetLegendHeightFromCounts = padding * 2 + (rowsCount * rowHeight) + ((rowsCount - 1) * rowGapPoints) + extraBottomPoints
+End Function
+
+Private Sub AddUniqueKey(ByRef keys() As String, ByRef keyCount As Long, ByVal newKey As String)
+    Dim i As Long
+    Dim normalizedKey As String
+
+    normalizedKey = NormalizeKey(newKey)
+    For i = 1 To keyCount
+        If NormalizeKey(keys(i)) = normalizedKey Then
+            Exit Sub
+        End If
+    Next i
+
+    keyCount = keyCount + 1
+    ReDim Preserve keys(1 To keyCount)
+    keys(keyCount) = newKey
+End Sub
+
+Private Function IsKeyUsed(ByRef keys() As String, ByVal keyCount As Long, ByVal targetKey As String) As Boolean
+    Dim i As Long
+    Dim normalizedTarget As String
+
+    normalizedTarget = NormalizeKey(targetKey)
+    For i = 1 To keyCount
+        If NormalizeKey(keys(i)) = normalizedTarget Then
+            IsKeyUsed = True
+            Exit Function
+        End If
+    Next i
+End Function
+
+Private Function GetTableColumnIndex(ByVal tableObj As ListObject, ByVal columnName As String) As Long
+    Dim idx As Long
+
+    On Error Resume Next
+    idx = tableObj.ListColumns(columnName).Index
+    On Error GoTo 0
+
+    GetTableColumnIndex = idx
+End Function
+
+Private Function GetLineTypeColor(ByVal lineTypesTable As ListObject, ByVal lineType As String, _
+                                  ByVal defaultColor As Long) As Long
+    Dim row As ListRow
+
+    For Each row In lineTypesTable.ListRows
+        If CStr(row.Range.Cells(1, 1).value) = lineType Then
+            If row.Range.Cells(1, 2).Interior.colorIndex <> xlColorIndexNone Then
+                GetLineTypeColor = row.Range.Cells(1, 2).Interior.Color
+            Else
+                GetLineTypeColor = defaultColor
+            End If
+            Exit Function
+        End If
+    Next row
+
+    GetLineTypeColor = defaultColor
+End Function
+
+Function GetLineTypeTransparency(ByVal lineTypesTable As ListObject, ByVal lineType As String, _
+                                 ByVal defaultTransparency As Double) As Double
+    Dim row As ListRow
+    Dim transpIndex As Long
+    Dim v As Variant
+
+    If lineTypesTable Is Nothing Then
+        GetLineTypeTransparency = defaultTransparency
+        Exit Function
+    End If
+
+    transpIndex = GetTableColumnIndex(lineTypesTable, "Прозрачность")
+    If transpIndex = 0 Then
+        GetLineTypeTransparency = defaultTransparency
+        Exit Function
+    End If
+
+    For Each row In lineTypesTable.ListRows
+        If CStr(row.Range.Cells(1, 1).Value) = lineType Then
+            v = row.Range.Cells(1, transpIndex).Value
+            If IsNumeric(v) Then
+                GetLineTypeTransparency = ClampTransparency(CDbl(v))
+            Else
+                GetLineTypeTransparency = defaultTransparency
+            End If
+            Exit Function
+        End If
+    Next row
+
+    GetLineTypeTransparency = defaultTransparency
+End Function
+
+Function GetEventTypeTransparency(ByVal eventTypesTable As ListObject, ByVal eventName As String, _
+                                  ByVal defaultTransparency As Double) As Double
+    Dim row As ListRow
+    Dim nameIndex As Long
+    Dim transpIndex As Long
+    Dim v As Variant
+
+    If eventTypesTable Is Nothing Then
+        GetEventTypeTransparency = defaultTransparency
+        Exit Function
+    End If
+
+    nameIndex = GetTableColumnIndex(eventTypesTable, "Событие")
+    transpIndex = GetTableColumnIndex(eventTypesTable, "Прозрачность")
+    If nameIndex = 0 Or transpIndex = 0 Then
+        GetEventTypeTransparency = defaultTransparency
+        Exit Function
+    End If
+
+    For Each row In eventTypesTable.ListRows
+        If NormalizeKey(CStr(row.Range.Cells(1, nameIndex).Value)) = NormalizeKey(eventName) Then
+            v = row.Range.Cells(1, transpIndex).Value
+            If IsNumeric(v) Then
+                GetEventTypeTransparency = ClampTransparency(CDbl(v))
+            Else
+                GetEventTypeTransparency = defaultTransparency
+            End If
+            Exit Function
+        End If
+    Next row
+
+    GetEventTypeTransparency = defaultTransparency
+End Function
+
+Private Function GetEventTypeInfo(ByVal eventTypesTable As ListObject, ByVal eventName As String, _
+                                  ByRef shapeType As MsoAutoShapeType, ByRef fillColor As Long, _
+                                  ByRef heightPoints As Double) As Boolean
+    Dim row As ListRow
+    Dim nameIndex As Long
+    Dim shapeIndex As Long
+    Dim colorIndex As Long
+    Dim heightIndex As Long
+    Dim shapeName As String
+
+    If eventTypesTable Is Nothing Then
+        GetEventTypeInfo = False
+        Exit Function
+    End If
+
+    nameIndex = GetTableColumnIndex(eventTypesTable, "Событие")
+    shapeIndex = GetTableColumnIndex(eventTypesTable, "Фигура")
+    colorIndex = GetTableColumnIndex(eventTypesTable, "Цвет")
+    heightIndex = GetTableColumnIndex(eventTypesTable, "Высота, мм")
+
+    If nameIndex = 0 Then
+        GetEventTypeInfo = False
+        Exit Function
+    End If
+
+    For Each row In eventTypesTable.ListRows
+        If NormalizeKey(CStr(row.Range.Cells(1, nameIndex).value)) = NormalizeKey(eventName) Then
+            If shapeIndex > 0 Then
+                shapeName = CStr(row.Range.Cells(1, shapeIndex).value)
+                shapeType = GetEventShapeType(shapeName)
+            Else
+                shapeType = msoShapeOval
+            End If
+
+            If colorIndex > 0 And row.Range.Cells(1, colorIndex).Interior.colorIndex <> xlColorIndexNone Then
+                fillColor = row.Range.Cells(1, colorIndex).Interior.Color
+            Else
+                fillColor = RGB(91, 155, 213)
+            End If
+
+            heightPoints = 0
+            If heightIndex > 0 And IsNumeric(row.Range.Cells(1, heightIndex).value) Then
+                heightPoints = CDbl(row.Range.Cells(1, heightIndex).value) * 2.83465
+            End If
+
+            GetEventTypeInfo = True
+            Exit Function
+        End If
+    Next row
+
+    GetEventTypeInfo = False
+End Function
+
+Private Function GetEventShapeType(ByVal shapeName As String) As MsoAutoShapeType
+    Select Case NormalizeKey(shapeName)
+        Case "облако"
+            GetEventShapeType = msoShapeCloud
+        Case "стрелка вниз"
+            GetEventShapeType = msoShapeDownArrow
+        Case "стрелка вверх"
+            GetEventShapeType = msoShapeUpArrow
+        Case "стрелка влево"
+            GetEventShapeType = msoShapeLeftArrow
+        Case "стрелка вправо"
+            GetEventShapeType = msoShapeRightArrow
+        Case "звезда 4 луча", "звезда 4 лучей"
+            GetEventShapeType = msoShape4pointStar
+        Case "звезда 5 луча", "звезда 5 лучей"
+            GetEventShapeType = msoShape5pointStar
+        Case "ромб"
+            GetEventShapeType = msoShapeDiamond
+        Case "круг", "овал"
+            GetEventShapeType = msoShapeOval
+        Case Else
+            GetEventShapeType = msoShapeOval
+    End Select
+End Function
+
+Private Function BuildTimeline(ByVal startDate As Date, ByVal endDate As Date, ByVal periodName As String, _
+                               ByVal dayWidth As Double, ByVal periodWidth As Double) As timelineData
+    Dim data As timelineData
+    Dim currentDate As Date
+    Dim periodStart As Date
+    Dim periodEnd As Date
+    Dim label As String
+    Dim count As Long
+    Dim width As Double
+    Dim quarterIndex As Long
+
+    If endDate < startDate Then
+        BuildTimeline = data
+        Exit Function
+    End If
+
+    currentDate = startDate
+    Do While currentDate <= endDate
+        count = count + 1
+        ReDim Preserve data.PeriodStarts(1 To count)
+        ReDim Preserve data.PeriodEnds(1 To count)
+        ReDim Preserve data.PeriodLabels(1 To count)
+        ReDim Preserve data.PeriodWidths(1 To count)
+        ReDim Preserve data.CumulativeWidths(1 To count)
+
+        Select Case LCase$(periodName)
+            Case "месяцы"
+                periodStart = DateSerial(Year(currentDate), Month(currentDate), 1)
+                periodEnd = DateSerial(Year(currentDate), Month(currentDate) + 1, 0)
+                label = Format$(periodStart, "mmmm")
+                width = periodWidth
+                currentDate = DateAdd("m", 1, periodStart)
+            Case "кварталы"
+                quarterIndex = ((Month(currentDate) - 1) \ 3) + 1
+                periodStart = DateSerial(Year(currentDate), (quarterIndex - 1) * 3 + 1, 1)
+                periodEnd = DateSerial(Year(currentDate), (quarterIndex - 1) * 3 + 4, 0)
+                label = CStr(quarterIndex) & " квартал"
+                width = periodWidth
+                currentDate = DateAdd("m", 3, periodStart)
+            Case Else
+                periodStart = currentDate
+                periodEnd = currentDate
+                label = Format$(currentDate, "dd.mm")
+                width = dayWidth
+                currentDate = DateAdd("d", 1, currentDate)
+        End Select
+
+        If periodEnd > endDate Then
+            periodEnd = endDate
+        End If
+
+        data.PeriodStarts(count) = periodStart
+        data.PeriodEnds(count) = periodEnd
+        data.PeriodLabels(count) = label
+        data.PeriodWidths(count) = width
+
+        If count = 1 Then
+            data.CumulativeWidths(count) = 0
+        Else
+            data.CumulativeWidths(count) = data.CumulativeWidths(count - 1) + data.PeriodWidths(count - 1)
+        End If
+
+        data.TotalWidth = data.TotalWidth + width
+    Loop
+
+    data.count = count
+    BuildTimeline = data
+End Function
+
+Private Sub ScaleTimeline(ByRef timelineData As timelineData, ByVal scaleFactor As Double)
+    Dim i As Long
+
+    If scaleFactor <= 0 Then
+        Exit Sub
+    End If
+
+    For i = 1 To timelineData.count
+        timelineData.PeriodWidths(i) = timelineData.PeriodWidths(i) * scaleFactor
+    Next i
+
+    timelineData.TotalWidth = 0
+    For i = 1 To timelineData.count
+        If i = 1 Then
+            timelineData.CumulativeWidths(i) = 0
+        Else
+            timelineData.CumulativeWidths(i) = timelineData.CumulativeWidths(i - 1) + timelineData.PeriodWidths(i - 1)
+        End If
+        timelineData.TotalWidth = timelineData.TotalWidth + timelineData.PeriodWidths(i)
+    Next i
+End Sub
+
+Private Sub NormalizeTimelinePeriodWidths(ByRef timelineData As timelineData)
+    Dim i As Long
+    Dim uniformWidth As Double
+
+    If timelineData.count = 0 Then
+        Exit Sub
+    End If
+
+    uniformWidth = timelineData.TotalWidth / timelineData.count
+    If uniformWidth <= 0 Then
+        Exit Sub
+    End If
+
+    For i = 1 To timelineData.count
+        timelineData.PeriodWidths(i) = uniformWidth
+    Next i
+
+    timelineData.TotalWidth = 0
+    For i = 1 To timelineData.count
+        If i = 1 Then
+            timelineData.CumulativeWidths(i) = 0
+        Else
+            timelineData.CumulativeWidths(i) = timelineData.CumulativeWidths(i - 1) + timelineData.PeriodWidths(i - 1)
+        End If
+        timelineData.TotalWidth = timelineData.TotalWidth + timelineData.PeriodWidths(i)
+    Next i
+End Sub
+
+Private Function GetTimelineOffset(ByRef timelineData As timelineData, ByVal targetDate As Date) As Double
+    Dim i As Long
+    Dim daysInPeriod As Long
+    Dim ratio As Double
+
+    If timelineData.count = 0 Then
+        GetTimelineOffset = 0
+        Exit Function
+    End If
+
+    If targetDate <= timelineData.PeriodStarts(1) Then
+        GetTimelineOffset = 0
+        Exit Function
+    End If
+
+    If targetDate >= timelineData.PeriodEnds(timelineData.count) + 1 Then
+        GetTimelineOffset = timelineData.TotalWidth
+        Exit Function
+    End If
+
+    For i = 1 To timelineData.count
+        If targetDate >= timelineData.PeriodStarts(i) And targetDate <= timelineData.PeriodEnds(i) + 1 Then
+            daysInPeriod = DateDiff("d", timelineData.PeriodStarts(i), timelineData.PeriodEnds(i)) + 1
+            If daysInPeriod <= 0 Then
+                GetTimelineOffset = timelineData.CumulativeWidths(i)
+            Else
+                ratio = DateDiff("d", timelineData.PeriodStarts(i), targetDate) / daysInPeriod
+                GetTimelineOffset = timelineData.CumulativeWidths(i) + timelineData.PeriodWidths(i) * ratio
+            End If
+            Exit Function
+        End If
+    Next i
+
+    GetTimelineOffset = timelineData.TotalWidth
+End Function
+
+Private Function GetPeriodHeaderHeight(ByRef timelineData As timelineData, ByVal baseHeight As Double, _
+                                       ByVal fontSize As Long, ByVal rotateAllPeriods As Boolean) As Double
+    Dim i As Long
+    Dim maxTextSize As Double
+    Dim currentSize As Double
+
+    maxTextSize = baseHeight
+    For i = 1 To timelineData.count
+        If rotateAllPeriods Then
+            currentSize = EstimateTextWidth(timelineData.PeriodLabels(i), fontSize)
+        Else
+            currentSize = EstimateTextHeight(fontSize)
+        End If
+        If currentSize > maxTextSize Then
+            maxTextSize = currentSize
+        End If
+    Next i
+
+    GetPeriodHeaderHeight = Application.WorksheetFunction.Max(baseHeight, maxTextSize + 4)
+End Function
+
+Private Function ShouldRotatePeriodLabel(ByVal labelText As String, ByVal blockWidth As Double, _
+                                         ByVal fontSize As Long) As Boolean
+    Dim textWidth As Double
+
+    textWidth = EstimateTextWidth(labelText, fontSize)
+    ShouldRotatePeriodLabel = textWidth > blockWidth - 2
+End Function
+
+Private Function ShouldRotateAllPeriodLabels(ByRef timelineData As timelineData, ByVal fontSize As Long) As Boolean
+    Dim i As Long
+
+    For i = 1 To timelineData.count
+        If ShouldRotatePeriodLabel(timelineData.PeriodLabels(i), timelineData.PeriodWidths(i), fontSize) Then
+            ShouldRotateAllPeriodLabels = True
+            Exit Function
+        End If
+    Next i
+
+    ShouldRotateAllPeriodLabels = False
+End Function
+
+Private Function EstimateTextWidth(ByVal labelText As String, ByVal fontSize As Long) As Double
+    Dim charWidth As Double
+
+    charWidth = fontSize * 0.6
+    EstimateTextWidth = Len(labelText) * charWidth
+End Function
+
+Private Function EstimateTextHeight(ByVal fontSize As Long) As Double
+    EstimateTextHeight = fontSize * 1.2
+End Function
+
+Private Function GetContrastingTextColor(ByVal fillColor As Long) As Long
+    Dim r As Long
+    Dim g As Long
+    Dim b As Long
+    Dim luminance As Double
+
+    r = fillColor Mod 256
+    g = (fillColor \ 256) Mod 256
+    b = (fillColor \ 65536) Mod 256
+
+    luminance = 0.299 * r + 0.587 * g + 0.114 * b
+    If luminance < 128 Then
+        GetContrastingTextColor = RGB(255, 255, 255)
+    Else
+        GetContrastingTextColor = RGB(0, 0, 0)
+    End If
+End Function
+' =========================================================
+' Export helpers
+' =========================================================
+
+Private Sub ExportRangeAsImage(ByVal ws As Worksheet, ByVal rng As Range, ByVal filePath As String, ByVal fmt As String)
+    ' Exports the specified range as an image using an embedded chart.
+    ' NOTE: PNG export (alpha) is intentionally NOT handled here. This helper is for
+    ' standard raster export (JPG/PNG without alpha). PNG workflow will be rebuilt later.
+
+    Dim chObj As ChartObject
+    Dim ch As Chart
+
+    On Error GoTo EH
+
+    ' Copy the range as a picture.
+    rng.CopyPicture Appearance:=xlScreen, Format:=xlPicture
+
+    ' Create a tiny chart object (off to the side) and paste the picture into it.
+    Set chObj = ws.ChartObjects.Add(Left:=rng.Left, Top:=rng.Top, Width:=rng.Width, Height:=rng.Height)
+    Set ch = chObj.Chart
+
+    With ch
+        .ChartArea.Format.Fill.Visible = msoFalse
+        .ChartArea.Format.Line.Visible = msoFalse
+        .PlotArea.Format.Fill.Visible = msoFalse
+        .PlotArea.Format.Line.Visible = msoFalse
+        .HasLegend = False
+        .HasTitle = False
+    End With
+
+    ch.Paste
+
+    ' Normalize format name.
+    fmt = UCase$(Trim$(fmt))
+    If fmt = "JPEG" Then fmt = "JPG"
+
+    ' Export.
+    ch.Export Filename:=CStr(filePath), FilterName:=fmt
+
+CleanUp:
+    On Error Resume Next
+    If Not chObj Is Nothing Then chObj.Delete
+    Application.CutCopyMode = False
+    On Error GoTo 0
+    Exit Sub
+
+EH:
+    ' Best-effort cleanup then rethrow.
+    Resume CleanUp
+End Sub
